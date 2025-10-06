@@ -6,14 +6,14 @@ Purrfect Match is a lightweight mobile app that helps adopters discover adoptabl
 
 ## Features (MVP)
 
-- Browse adoptable pets from the **Petfinder API** via our Node/Express proxy  
+- Browse adoptable pets from the **Petfinder API** via our Node/Express proxy
+- Tinder style swipe deck using "react-native-deck-swiper" component 
 - View detailed pet information (photos, description, shelter contact)  
 - Save and remove favorites locally using AsyncStorage  
 - Simple filters: type (dog/cat), location (zip code), and search radius  
 - Robust error handling for no internet or empty results  
 
 **Stretch Goals:**  
-- Tinder-style swipe-based discovery  
 - Additional filters (age, size)  
 - Map view (shelter clusters)  
 - Playdate board for pet owners  
