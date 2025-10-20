@@ -1,0 +1,77 @@
+# Team Report (Purrfect Match)
+
+## Last Week’s Goals
+- [x] Complete and get approval on the Architecture & Design Document.  
+- [x] Document the rationale for using all tools (Expo, Express, SQLite, JWT, Zod).  
+- [x] Approve and commit the final normalized database schema.  
+- [x] Implement and demonstrate basic app navigation using Expo Router.  
+- [x] Set up the Express server skeleton and confirm `/status` route works locally.  
+- [x] Draft and circulate the sprint planning agenda with 5–8 user stories.  
+
+## Progress and Issues
+Last week, our team made significant progress and successfully met all of our goals. We finalized the **Architecture & Design Document**, which now includes clear API routes, data flow diagrams, and a consistent coding style guide. Our **technology stack rationale** was documented, explaining why each tool best supports our MVP goals.  
+
+On the **frontend**, Xuan and Emily implemented the foundational navigation using **Expo Router**, allowing users to move between the Community and Playdate tabs. On the **backend**, Bao, Larrianna, and Abi set up the **Express + TypeScript** server and verified the `/status` route on all local machines.  
+
+We also completed and approved the **database schema** for `users`, `posts`, and `comments`, which is now stored in our documentation file. Finally, our **Sprint 1 planning** was completed, with user stories prioritized around post creation, community feed viewing, and authentication setup.  
+
+Overall, the team worked efficiently through close communication on Discord. We encountered some challenges connecting the backend to Expo due to environment variable configuration and CORS issues, but these were resolved through group debugging and shared documentation.
+
+### Summary of progress
+- **Architecture & Design:** Final document completed and approved.  
+- **Technology Stack:** Rationale for Expo, Express, SQLite, JWT, and Zod added.  
+- **Database:** Normalized schema committed and reviewed.  
+- **Frontend:** Navigation flow functional via Expo Router.  
+- **Backend:** Express server running locally for all members.  
+- **Sprint Planning:** User stories prioritized and shared.  
+- **Issues:**  
+  - Need clearer naming conventions for API endpoints.  
+  - Backend–frontend integration still requires minor adjustments.  
+
+## Plans and Goals for the Next Week
+- [ ] **Backend Development (Playdates + Community APIs):** Implement and test CRUD routes for posts and comments, ensuring integration with the frontend.  
+    - **Deadline: October 25, EOD**
+- [ ] **Frontend Integration (Feed + Post Creation):** Connect Community and Playdate tabs to backend data via API calls and render posts dynamically.  
+    - **Deadline: October 25, EOD**
+- [ ] **Authentication System:** Develop signup/login routes using JWT and connect to the profile screen.  
+    - **Deadline: October 27, EOD**
+- [ ] **Search Functionality:** Add keyword search on the Community tab to filter posts by topic or pet type.  
+    - **Deadline: October 26, EOD**
+- [ ] **UI/UX Enhancements:** Refine Figma wireframes and align visuals with the implemented components.  
+    - **Deadline: October 26, EOD**
+- [ ] **Testing Framework Setup:** Initialize Jest for backend routes and create first-round unit tests.  
+    - **Deadline: October 26, EOD**
+- [ ] **Testing Plan & CI Setup:** Flesh out the testing plan detailed in the living document and set up automated testing and continuous integration (CI) for the project.  
+    - **Deadline: October 27, EOD**
+
+# Individual Contributions
+
+## Hsu (UI/UX Designer & Coordinator)
+- **Progress:** Completed wireframes for Playdate and Community tabs; refined layout flow in Figma.  
+- **Issues:** Some component spacing inconsistencies between Figma and Expo preview.  
+- **Next Week:** Update high-fidelity mockups and assist with UI polish (3 days total).  
+
+## Xuan (Frontend Developer)
+- **Progress:** Built and tested tab/stack navigation with Expo Router.  
+- **Issues:** Minor CORS issues when fetching from backend during local testing.  
+- **Next Week:** Connect Community tab to backend feed and display post data dynamically (3 days).  
+
+## Emily (Frontend Developer)
+- **Progress:** Designed and implemented Playdate creation form UI; integrated navigation flow.  
+- **Issues:** Slight layout misalignment across device sizes.  
+- **Next Week:** Link Playdate form submission to backend and add form validation (3 days).  
+
+## Bao (Backend Developer)
+- **Progress:** Set up Express server and TypeScript configuration; verified `/status` route functionality.  
+- **Issues:** Need to finalize JWT integration for authentication.  
+- **Next Week:** Implement backend routes for posts, comments, and authentication (3 days).  
+
+## Larrianna (Backend Developer)
+- **Progress:** Finalized database schema and documented entity relationships.  
+- **Issues:** Aligning schema with frontend data formats.  
+- **Next Week:** Develop API routes for post retrieval and search functionality (3 days).  
+
+## Abi (Backend Support & Tester)
+- **Progress:** Helped document backend setup; researched Jest configuration for Express testing.  
+- **Issues:** Still learning best practices for API testing structure.  
+- **Next Week:** Initialize Jest tests, set up CI pipeline, and expand the testing plan (3 days).  
