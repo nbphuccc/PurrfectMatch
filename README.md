@@ -41,16 +41,25 @@ Goal: Create a fun, mobile-first way for owners to discover events, share knowle
 
 ## Repository Structure
 
-- **Backend** – Node.js + Express server
+- **Server** – Node.js + Express server
+  - **db/** - DB schema and sample data
+    - **schema.sql** 
+  - **node_modules/** - Dependencies 
   - **src/**  
+    - **controllers/** – Parse req/res, call service, set HTTP codes 
+    requests 
+    - **dao/** – Data Access Layer
+    - **moddlewares/** – Reusable Express middlewares
     - **routes/** – API route definitions  
-    - **controllers/** – Logic for handling requests  
-    - **models/** – SQLite schema (posts, users) 
-    - **server.js** – Entry point
-  - **tests/** – Backend tests
+    - **services/** – Business logic + validation
+    - **tests/** – Backend integration/unit tests
+  - **app.ts** - Exports configured Express app (for testing)
+  - **index.ts** - Entry point: creates and starts Express app
+  
+  
  
 
-- **Frontend** – React Native app (Expo)  
+- **App** – React Native app (Expo)  
   - **assets/** – Images, icons  
   - **components/** – Reusable UI components  
   - **screens/** – App screens (Browse, Detail, Favorites, Tips)  
