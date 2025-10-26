@@ -36,7 +36,7 @@ export default function CommunityScreen() {
       />
       
       <TouchableOpacity style={styles.fab} 
-        onPress={() => {}}> 
+        onPress={() => {router.push('../CreateCommunityPost')}}> 
         <Ionicons name="add" size={28} color="#fff" /> 
       </TouchableOpacity>
       
