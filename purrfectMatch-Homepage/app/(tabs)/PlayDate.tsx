@@ -1,5 +1,7 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
-
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const posts = [
   { id: '1', user_id: 'Alice', title: "Dog PlayDate", description: 'My energetic Golden Retriever, Sunny, is looking for playmates! He loves chasing balls and is great with dogs of all sizes. Perfect for high-energy pups who need to burn off some steam!', type: 'playdate', location_city: "Discovery Park, Seattle, WA" },
@@ -8,6 +10,8 @@ const posts = [
 ];
 
 function PlayDate() {
+  const router = useRouter();
+  
   return (
     <View style={styles.container}>
       <FlatList
@@ -22,6 +26,12 @@ function PlayDate() {
         </View>
       )}
       />
+
+      <TouchableOpacity style={styles.fab} 
+        onPress={() => { router.push('../CreatePlaydatePost') }} 
+      >
+        <Ionicons name="add" size={28} color="#fff" /> 
+      </TouchableOpacity>
     </View>
   )
 }
@@ -34,12 +44,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', 
     padding: 16 
   },
-  // header: {
-  //   flexDirection: 'row',
-  //   justifyContent: 'space-between',
-  //   alignItems: 'center',
-  //   paddingVertical: 12,
-  // },
   post: {
     backgroundColor: '#f2f2f2',
     padding: 12,
@@ -60,5 +64,19 @@ const styles = StyleSheet.create({
   content: { 
     color: '#444' 
   },
-  
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 30,
+    backgroundColor: '#4A90E2',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+  },
 })

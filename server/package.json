@@ -4,7 +4,12 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --loader ts-node/esm src/app.ts"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev:build": "tsc -w",
+    "dev:run": "node --watch dist/server.js",
+    "dev": "npm run build && (npm run dev:build & npm run dev:run)",
+    "test": "cross-env NODE_ENV=test jest --runInBand"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +30,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.8.0",
     "@types/supertest": "^6.0.3",
+    "cross-env": "^10.1.0",
     "jest": "^30.2.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.5",
