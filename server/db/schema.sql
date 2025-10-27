@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS community_posts(
 );
 CREATE TABLE IF NOT EXISTS comments(
   id INTEGER PRIMARY KEY,
-  post_id INTEGER REFERENCES posts(id),
+  post_id INTEGER REFERENCES community_posts(id),
   author_id INTEGER REFERENCES users(id),
   body TEXT NOT NULL,
   created_at TEXT
