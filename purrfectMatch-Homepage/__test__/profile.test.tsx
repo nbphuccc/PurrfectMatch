@@ -1,19 +1,3 @@
-// import React from 'react';
-// import { render } from '@testing-library/react-native';
-// import Profile from '../app/(tabs)/profile';
-
-// // Mock expo-router to avoid runtime navigation calls during tests
-// jest.mock('expo-router', () => ({
-//   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
-// }));
-
-// describe('Profile screen', () => {
-//   test('renders Login title', () => {
-//     const { getByText } = render(<Profile />);
-//     expect(getByText('Login')).toBeTruthy();
-//   });
-// });
-
 import { render } from '@testing-library/react-native';
 
 import Profile from '../app/(tabs)/profile';
