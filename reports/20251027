@@ -1,0 +1,69 @@
+# Team Report (Purrfect Match)
+
+## Last Week’s Goals
+- Implement and test CRUD routes for posts and comments (Playdates + Community APIs).  
+- Connect frontend tabs (Community + Playdate) to backend data and render posts dynamically.  
+- Develop signup/login routes using JWT and integrate with the profile screen.  
+- Add keyword search functionality on the Community tab.  
+- Refine Figma wireframes and align UI visuals with implemented components.  
+- Initialize Jest for backend testing and establish the CI pipeline.  
+
+---
+
+## Progress and Issues
+
+
+---
+
+## Summary of Progress
+- **Backend Development:** CRUD routes for posts, comments, and authentication fully implemented.  
+- **Frontend Integration:** Dynamic rendering of posts and Playdate submissions functional.  
+- **Authentication:** JWT system complete and integrated with the profile screen.  
+- **Search Feature:** Keyword-based post filtering added to Community tab.  
+- **UI/UX:** Figma wireframes updated to match implemented components.  
+- **Testing:** Jest testing initialized and CI pipeline configured.  
+
+### Issues 
+
+---
+
+## Plans and Goals for Next Week
+- **Backend:**
+- **Frontend:**
+- **Authentication & Profiles:**
+- **UI/UX:**
+- **Testing:**
+
+---
+
+## Individual Contributions
+
+### Hsu (UI/UX Designer & Coordinator)
+- **Progress:**
+- **Issues:**  
+- **Next Week:** 
+
+### Xuan (Frontend Developer)
+- **Progress:**
+- **Issues:** 
+- **Next Week:**
+
+### Emily (Frontend Developer)
+- **Progress:**
+- **Issues:** 
+- **Next Week:** 
+
+### Bao (Backend Developer)
+- **Progress:** 
+- **Issues:**
+- **Next Week:**  
+
+### Larrianna (Backend Developer)
+- **Progress:** 
+- **Issues:**
+- **Next Week:**
+
+### Abi (Backend Support & Tester)
+- **Progress:**
+- **Issues:**
+- **Next Week:**
