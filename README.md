@@ -67,4 +67,7 @@ Goal: Create a fun, mobile-first way for owners to discover events, share knowle
   - **app.js** – Entry point for React Native  
 
 - **Docs** – Documentation  
-  - **Living Document link** https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.ypct95m4pes8
+  - **Living Document** https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.ypct95m4pes8
+  - **User Manual Google Doc** - https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.xhk44xm02hj6
+  - **Developer Guidelines Google Doc** - https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.19ziwlhegglo
+  - **Figma Mock UI Designs** - https://www.figma.com/design/pcUD0XE7ul2yHJSdUwS0YE/Purrfect-Match-App?node-id=0-1&p=f&t=9FO5LRdfpCX0pySG-0
