@@ -1,6 +1,6 @@
+import { useRouter } from 'expo-router'
 import React from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { useRouter } from 'expo-router'
 
 export default function ForgotPassword() {
   const router = useRouter()
