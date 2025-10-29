@@ -1,18 +1,90 @@
 import { useRouter } from 'expo-router'
-import React from 'react'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import React, { useState } from 'react'
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native'
 
-export default function ForgotPassword() {
+export default function signUp() {
   const router = useRouter()
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSignUp = async () => {
+    if (!email || !username || !password) {
+      Alert.alert("Error", "Please fill out all fields");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, username, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert("Success", "Account created successfully!");
+        setEmail("");
+        setUsername("");
+        setPassword("");
+      } else {
+        Alert.alert("Signup failed", data.message || "Something went wrong");
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Could not connect to server");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>here to create account</Text>
-      <Text style={styles.instructions}>here is instruction.</Text>
+      <View style={styles.signUp}>
+        <Text style={styles.title}>Sign Up</Text>
 
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Text style={{ color: '#fff' }}>Back</Text>
-      </TouchableOpacity>
+        <Text style={styles.account_create}>enter your email</Text>
+        <TextInput
+          style={styles.input}
+          value = {email}
+          onChangeText = {setEmail}
+          placeholder = "enter your email"
+          autoCapitalize='none'
+          keyboardType='email-address'
+        />
+         
+        <Text style={styles.account_create}>enter your username</Text>
+        <TextInput
+          style={styles.input}
+          value = {username}
+          onChangeText = {setUsername}
+          placeholder = "enter your username"
+          autoCapitalize='none'
+        />
+
+        <Text style={styles.account_create}>enter your password</Text>
+        <TextInput
+          style={styles.input}
+          value = {password}
+          onChangeText = {setPassword}
+          placeholder = "enter your password"
+          autoCapitalize='none'
+        />
+
+        <TouchableOpacity
+          style={[styles.button, loading && { backgroundColor: "#aaa" }]}
+          onPress={handleSignUp}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Signing Up..." : "Register"}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   )
 }
@@ -20,24 +92,46 @@ export default function ForgotPassword() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#f2f4f7',
     padding: 16,
-    backgroundColor: '#fff'
+    justifyContent: 'center',
+  },
+  signUp: {
+    backgroundColor: '#fff',
+    padding: 30,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius:10
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12
+    fontSize: 24,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center'
   },
-  instructions: {
-    color: '#555',
+  account_create: {
+    fontSize: 14,
+    color: '#444',
+    marginBottom: 8
+  },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fafafa',
     marginBottom: 20
   },
-  backButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8
-  }
+  button: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 15,
+    borderRadius: 8,
+    alignItems: "center"
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: 600
+  },
 })
