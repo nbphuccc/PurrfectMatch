@@ -10,7 +10,6 @@ const US_STATES = [
 'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'
 ];
 
-
 // Placeholder for current example posts
 const initialPosts = [
 {
@@ -39,7 +38,6 @@ const initialPosts = [
 },
 ];
 
-
 export default function PlaydateScreen() {
 const [showForm, setShowForm] = useState(false);
 const [formData, setFormData] = useState({
@@ -63,10 +61,8 @@ const [selectedState, setSelectedState] = useState('WA');
 const [modalVisible, setModalVisible] = useState(false);
 const [formModalVisible, setFormModalVisible] = useState(false);
 
-
 const [posts, setPosts] = useState(initialPosts);
 const [filteredPosts, setFilteredPosts] = useState(initialPosts);
-
 
 const showAlert = (title: string, message: string) => {
   if (typeof window !== 'undefined' && window.alert) {
@@ -76,7 +72,6 @@ const showAlert = (title: string, message: string) => {
   }
 };
 
-
 // Update form fields and resert error state
 const handleInputChange = (key: string, value: string) => {
   setFormData({ ...formData, [key]: value });
@@ -84,7 +79,6 @@ const handleInputChange = (key: string, value: string) => {
     setErrors({ ...errors, [key]: false });
   }
 };
-
 
 // Validate the form to submit a new playdate post
 const handleSubmit = () => {
