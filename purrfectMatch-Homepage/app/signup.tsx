@@ -27,11 +27,17 @@ export default function signUp() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert("Success", "Account created successfully!");
+        Alert.alert("Success", "Account created successfully!", [
+          {
+            text: "OK",
+            onPress: () => router.push("../profile"), //navigate to login screen
+          },
+        ]);
         setEmail("");
         setUsername("");
         setPassword("");
       } else {
+        //here the backend can send back a messege why it fail
         Alert.alert("Signup failed", data.message || "Something went wrong");
       }
     } catch (error) {
