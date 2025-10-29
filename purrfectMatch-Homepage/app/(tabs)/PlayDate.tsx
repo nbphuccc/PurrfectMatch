@@ -535,6 +535,3 @@ buttonText: {
  color: '#000'
 },
 });
-
-
-
