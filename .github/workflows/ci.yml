@@ -20,16 +20,17 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: 16
+        node-version: 20
 
     - name: Install and test backend
       working-directory: ./server
       run: |
-        npm install
+        npm ci
+        npm rebuild better-sqlite3
         npm test
 
     - name: Install and test frontend
       working-directory: ./purrfectMatch-Homepage
       run: |
-        npm install
+        npm ci
         npm test

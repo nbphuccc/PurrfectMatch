@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router'
 import React from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { createCommunityPost } from "./api/community";
 
 export default function ForgotPassword() {
   const router = useRouter()
