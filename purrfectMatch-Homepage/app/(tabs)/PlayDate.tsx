@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { createPlaydatePost } from "../api/playdates";
+import { api } from "../api/Client";
+import { useEffect } from "react";
 
 
 // States that user can select to filter the location they want for the playdate
@@ -81,7 +84,7 @@ const handleInputChange = (key: string, value: string) => {
 };
 
 // Validate the form to submit a new playdate post
-const handleSubmit = () => {
+const handleSubmit = async () => {
   const trimmedTime = formData.time.trim();
   const trimmedDate = formData.date.trim();
   const trimmedBreed = formData.petBreed.trim();
@@ -121,6 +124,24 @@ const handleSubmit = () => {
     return;
   }
 
+  // combine date + time for backend `when_at`
+  const whenAt = `${trimmedDate} ${trimmedTime}`; // MVP-friendly; you can switch to ISO later
+
+  try {
+    // TODO: replace author_id with real user once auth exists
+    const created = await createPlaydatePost({
+      author_id: 1,
+      title: `Playdate with ${trimmedBreed}`,
+      description: formData.description.trim() || `${trimmedBreed} playdate scheduled!`,
+      dog_breed: trimmedBreed,
+      address: formData.address?.trim() || "TBD",
+      city: trimmedCity,
+      state: selectedState,
+      zip: formData.zip?.trim() || "",
+      when_at: whenAt,
+      place: trimmedCity, // or a dedicated place field if you add it to the form
+      image_url: formData.petImage?.trim() ? formData.petImage.trim() : null,
+    });
 
   // Create new post object
   const newPost = {
@@ -163,6 +184,34 @@ const handleSearch = () => {
   setFilteredPosts(results);
 };
 
+// load posts from backend (initially and when searching)
+async function fetchPlaydates(params?: { city?: string; q?: string; page?: number; limit?: number }) {
+  try {
+    const { data } = await api.get("/playdates", { params });
+    // backend returns { items, page, limit }
+    // map to your current card shape
+    const rows = (data.items ?? []).map((p: any) => ({
+      id: p.id,
+      user: `User #${p.author_id ?? "?"}`,
+      time: new Date(p.created_at ?? Date.now()).toLocaleString(),
+      title: p.title,
+      city: p.city,
+      state: p.state,
+      image: p.image_url || "https://via.placeholder.com/800x400.png?text=Playdate",
+      description: p.description,
+      likes: 0,
+      comments: 0,
+    }));
+    setPosts(rows);
+    setFilteredPosts(rows);
+  } catch (err: any) {
+    showAlert("Error", err?.response?.data?.error ?? "Failed to load playdates.");
+  }
+}
+
+useEffect(() => {
+  fetchPlaydates(); // load all on mount
+}, []);
 
 return (
   <View style={styles.container}>
