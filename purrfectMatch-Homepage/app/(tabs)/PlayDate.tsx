@@ -4,6 +4,7 @@ import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, Touchable
 import { createPlaydatePost } from "../api/playdates";
 import { api } from "../api/Client";
 import { useEffect } from "react";
+import React from 'react';
 
 
 // States that user can select to filter the location they want for the playdate
@@ -51,6 +52,8 @@ const [formData, setFormData] = useState({
   contactInfo: '',
   petImage: '',
   description: '',
+  address: '', // Added address property
+  zip: '', // Added zip property
 });
 const [errors, setErrors] = useState({
   time: false,
@@ -136,11 +139,12 @@ const handleSubmit = async () => {
       dog_breed: trimmedBreed,
       address: formData.address?.trim() || "TBD",
       city: trimmedCity,
-      state: selectedState,
+      zip: formData.zip?.trim() || "", // Added zip property
       zip: formData.zip?.trim() || "",
       when_at: whenAt,
       place: trimmedCity, // or a dedicated place field if you add it to the form
       image_url: formData.petImage?.trim() ? formData.petImage.trim() : null,
+      state: ''
     });
 
   // Create new post object
@@ -162,7 +166,7 @@ const handleSubmit = async () => {
   setPosts([newPost, ...posts]);
   setFilteredPosts([newPost, ...posts]);
   setShowForm(false);
-  setFormData({ time: '', date: '', petBreed: '', city: '', contactInfo: '', petImage: '', description: '' });
+  setFormData({ time: '', date: '', petBreed: '', city: '', contactInfo: '', petImage: '', description: '', address: '', zip: '' });
   setErrors({ time: false, date: false, petBreed: false, city: false });
 
 
@@ -187,7 +191,7 @@ const handleSearch = () => {
 // load posts from backend (initially and when searching)
 async function fetchPlaydates(params?: { city?: string; q?: string; page?: number; limit?: number }) {
   try {
-    const { data } = await api.get("/playdates", { params });
+    const { data }: { data: { items: any[] } } = await api.get("/playdates", { params });
     // backend returns { items, page, limit }
     // map to your current card shape
     const rows = (data.items ?? []).map((p: any) => ({
