@@ -146,6 +146,10 @@ const handleSubmit = async () => {
       image_url: formData.petImage?.trim() ? formData.petImage.trim() : null,
       state: ''
     });
+  } catch (error) {
+    console.error("Failed to create playdate:", error);
+    Alert.alert("Error", "Failed to create playdate. Please try again.");
+  }
 
   // Create new post object
   const newPost = {
