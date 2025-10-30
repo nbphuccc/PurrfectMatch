@@ -59,6 +59,7 @@ export default function signUp() {
           value = {email}
           onChangeText = {setEmail}
           placeholder = "enter your email"
+          placeholderTextColor="#888"
           autoCapitalize='none'
           keyboardType='email-address'
         />
@@ -69,6 +70,7 @@ export default function signUp() {
           value = {username}
           onChangeText = {setUsername}
           placeholder = "enter your username"
+          placeholderTextColor="#888"
           autoCapitalize='none'
         />
 
@@ -78,6 +80,7 @@ export default function signUp() {
           value = {password}
           onChangeText = {setPassword}
           placeholder = "enter your password"
+          placeholderTextColor="#888"
           autoCapitalize='none'
         />
 

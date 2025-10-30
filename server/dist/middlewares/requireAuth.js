@@ -1,3 +1,4 @@
+export {};
 /*
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
@@ -19,4 +20,5 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     res.status(401).json({ error: "Invalid token" });
   }
 }
-*/
+*/ 
+//# sourceMappingURL=requireAuth.js.map
