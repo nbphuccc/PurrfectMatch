@@ -9,7 +9,8 @@
     "dev:build": "tsc -w",
     "dev:run": "node --watch dist/server.js",
     "dev": "npm run build && (npm run dev:build & npm run dev:run)",
-    "test": "cross-env NODE_ENV=test jest --runInBand"
+    "test": "cross-env NODE_ENV=test jest --runInBand",
+	"lint": "eslint \"src/**/*.{ts,tsx}\" --fix"
   },
   "keywords": [],
   "author": "",
@@ -32,7 +33,11 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.8.0",
     "@types/supertest": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "cross-env": "^10.1.0",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
     "jest": "^30.2.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.5",
