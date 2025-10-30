@@ -3,9 +3,9 @@ import request from "supertest";
 
 // ESM note: use .js on local paths (ts-jest will map them)
 // Import the Express app (no .listen() inside app.ts)
-import app from "../src/app.js";
+import app from "../../src/app.js";
 // Import the DB (better-sqlite3)
-import db from "../src/dao/db.js";
+import db from "../../src/dao/db.js";
 
 describe("PLAYDATE POSTS", () => {
   let testUserId: number;
