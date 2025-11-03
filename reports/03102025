@@ -1,0 +1,80 @@
+# Team Report (Purrfect Match)
+
+## Last Week’s Goals
+- [x] Finalize endpoint naming, verify integration with frontend, and deploy backend for shared testing.  
+- [x] Complete connection of Community and Playdate features to backend APIs and refine validation.  
+- [x] Finalize JWT token handling and test login/logout functionality.  
+- [x] Conduct visual QA and finalize high-fidelity mockups for the beta version.  
+- [x] Expand Jest tests for authentication and commenting; finalize CI pipeline for automated runs.  
+
+---
+
+## Progress and Issues
+This week, the team focused heavily on **test suite quality** and **beta readiness**. We expanded Jest coverage, stabilized flaky tests, and improved our CI pipeline to catch regressions earlier.
+
+- **Backend:** CRUD routes for posts/comments are implemented. We refined route contracts and added placeholder tests, but full **frontend integration is still pending** until data contracts are finalized.  
+- **Authentication:** **JWT flow remains in progress**; token generation is prototyped, but verification + session handling need completion and alignment with frontend headers/body expectations.  
+- **Frontend:** Components are prepared for API wiring; navigation and validation were refined, but **live API integration is not completed** yet.  
+- **Testing/CI:** Significant time was invested here—unit test structure was standardized, and CI runs now surface clearer failure output. Some tests remain skipped pending integration decisions.
+
+**Key Issues**
+- Frontend–backend **data contract alignment** (payload shapes, status codes, error formats).  
+- **Token handling** agreement (where access/refresh tokens live and how they’re transmitted).  
+- A few **flaky tests** related to async DB setup/teardown and environment configuration.  
+
+---
+
+## Summary of Progress
+- **Backend:** CRUD routes in place; contracts refined; placeholder tests added.  
+- **Frontend:** UI ready for wiring; validation patterns improved.  
+- **Auth:** JWT prototype partial; verification and refresh flow pending.  
+- **UI/UX:** Beta visuals tightened in Figma.  
+- **Testing/CI:** Coverage expanded; CI stability improved; some tests still skipped pending integration.
+
+---
+
+## Plans and Goals for Next Week
+- **Integration (FE+BE):** Complete end-to-end wiring for Community & Playdate flows; standardize request/response schemas and error handling.  
+  _Deadline: Nov 13, EOD_
+- **Authentication:** Finish JWT verification, refresh strategy, and protected route middleware; add happy-path and failure-path tests.  
+  _Deadline: Nov 13, EOD_
+- **Beta Candidate Prep:** Implement a short feature freeze mid-week; produce a signed beta build and smoke-test on iOS/Android emulators.  
+  _Deadline: Nov 14, EOD_
+- **Testing:** Raise backend route and auth coverage; unskip integration tests; stabilize DB lifecycle for tests.  
+  _Deadline: Nov 14, EOD_
+- **Observability & QA:** Add basic request logging and error tracing; run a structured bug bash and triage board.  
+  _Deadline: Nov 15, EOD_
+
+---
+
+## Individual Contributions
+
+### Hsu (UI/UX Designer & Coordinator)
+- **Progress:**  
+- **Issues:**  
+- **Next Week:**  
+
+### Xuan (Frontend Developer)
+- **Progress:**  
+- **Issues:**  
+- **Next Week:**  
+
+### Emily (Frontend Developer)
+- **Progress:**  
+- **Issues:**  
+- **Next Week:**  
+
+### Bao (Backend Developer)
+- **Progress:**  
+- **Issues:**  
+- **Next Week:**  
+
+### Larrianna (Backend Developer)
+- **Progress:**   
+- **Issues:**  
+- **Next Week:** 
+
+### Abi (Backend Support & Tester)
+- **Progress:**  
+- **Issues:**  
+- **Next Week:**  
