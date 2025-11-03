@@ -27,11 +27,17 @@ export default function signUp() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert("Success", "Account created successfully!");
+        Alert.alert("Success", "Account created successfully!", [
+          {
+            text: "OK",
+            onPress: () => router.push("../profile"), //navigate to login screen
+          },
+        ]);
         setEmail("");
         setUsername("");
         setPassword("");
       } else {
+        //here the backend can send back a messege why it fail
         Alert.alert("Signup failed", data.message || "Something went wrong");
       }
     } catch (error) {
@@ -53,6 +59,7 @@ export default function signUp() {
           value = {email}
           onChangeText = {setEmail}
           placeholder = "enter your email"
+          placeholderTextColor="#888"
           autoCapitalize='none'
           keyboardType='email-address'
         />
@@ -63,6 +70,7 @@ export default function signUp() {
           value = {username}
           onChangeText = {setUsername}
           placeholder = "enter your username"
+          placeholderTextColor="#888"
           autoCapitalize='none'
         />
 
@@ -72,6 +80,7 @@ export default function signUp() {
           value = {password}
           onChangeText = {setPassword}
           placeholder = "enter your password"
+          placeholderTextColor="#888"
           autoCapitalize='none'
         />
 
