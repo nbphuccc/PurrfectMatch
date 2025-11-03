@@ -18,7 +18,7 @@ export default function signUp() {
     setLoading(true);
 
     try {
-      const response = await fetch("", {
+      const response = await fetch("http://10.0.0.243:3000/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, username, password }),
