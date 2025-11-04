@@ -41,7 +41,9 @@ describe("PLAYDATE POSTS", () => {
 
   beforeEach(() => {
     // Clear all data before each test
+    db.exec("DELETE FROM comments");
     db.exec("DELETE FROM playdate_posts");
+    db.exec("DELETE FROM community_posts");
     db.exec("DELETE FROM users");
     
     // Create a test user directly in DB
