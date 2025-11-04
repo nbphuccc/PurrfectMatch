@@ -53,10 +53,10 @@
 
 ### 3.3 Install & Run (Backend)
 1. `cd server`  
-2. `npm install`  
-3. Development: `npm run dev`  
-4. Production build & start:  
-   - `npm run build`  
+2. `npm install`
+3. `npm rebuild better-sqlite3`
+4. Development: `npm run dev`  
+5. Production build & start:  
    - `npm start`
 
 ### 3.4 Install & Run (Frontend)
