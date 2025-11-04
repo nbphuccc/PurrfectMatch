@@ -12,7 +12,8 @@
     "dev:build": "tsc -w",
     "dev:run": "node --watch dist/server.js",
     "dev": "npm run build && (npm run dev:build & npm run dev:run)",
-    "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
+    "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand"
   },
   "keywords": [],
   "author": "",
