@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { createPlaydatePost } from "../api/playdates";
-import { api } from "../api/Client";
-import { useEffect } from "react";
-import React from 'react';
+import { createPlaydatePost } from "../../api/playdates";
+import { CreateComments } from "../CreateComments";
+import { addComment, getComments } from "../../api/playdates";
+import { useLocalSearchParams } from 'expo-router';
+import { api } from "../../api/Client";
 
 
 // States that user can select to filter the location they want for the playdate
@@ -23,7 +24,7 @@ const initialPosts = [
   title: 'Playdate at Green Lake!',
   city: 'Seattle',
   state: 'WA',
-  image: 'https://images.unsplash.com/photo-1596496058854-5f9a75e6c36f?auto=format&fit=crop&w=800&q=80',
+  image: 'https://paradepets.com/.image/w_3840,q_auto:good,c_limit/NTowMDAwMDAwMDAwMDMzNDg5/shutterstock_246276190_1200x800.jpg',
   description: "We’re hosting a playdate at Green Lake this Saturday, Oct...",
   likes: 21,
   comments: 4,
@@ -35,7 +36,7 @@ const initialPosts = [
   title: 'Morning walk meetup',
   city: 'Portland',
   state: 'OR',
-  image: 'https://images.unsplash.com/photo-1601758125946-6ec2f2d1dc3b?auto=format&fit=crop&w=800&q=80',
+  image: 'https://cdn.britannica.com/84/232784-050-1769B477/Siberian-Husky-dog.jpg',
   description: 'Join us for a morning walk at Volunteer Park tomorrow!',
   likes: 15,
   comments: 2,
@@ -43,6 +44,10 @@ const initialPosts = [
 ];
 
 export default function PlaydateScreen() {
+const { postId } = useLocalSearchParams(); // string | string[] | undefined
+const postIdNum = Array.isArray(postId) ? Number(postId[0]) : Number(postId);
+const hasValidPostId = postId !== undefined && !Number.isNaN(postIdNum);
+
 const [showForm, setShowForm] = useState(false);
 const [formData, setFormData] = useState({
   time: '',
@@ -69,6 +74,12 @@ const [formModalVisible, setFormModalVisible] = useState(false);
 
 const [posts, setPosts] = useState(initialPosts);
 const [filteredPosts, setFilteredPosts] = useState(initialPosts);
+const [loading, setLoading] = useState(true);
+const latestReq = useRef(0);
+
+// Build absolute URLs when backend returns "/something.jpg"
+const BASE_URL = (api.defaults.baseURL as string) || "";
+const abs = (u?: string | null) => (u ? (u.startsWith("http") ? u : `${BASE_URL}${u}`) : "");
 
 const showAlert = (title: string, message: string) => {
   if (typeof window !== 'undefined' && window.alert) {
@@ -140,11 +151,10 @@ const handleSubmit = async () => {
       address: formData.address?.trim() || "TBD",
       city: trimmedCity,
       zip: formData.zip?.trim() || "", // Added zip property
-      zip: formData.zip?.trim() || "",
       when_at: whenAt,
       place: trimmedCity, // or a dedicated place field if you add it to the form
       image_url: formData.petImage?.trim() ? formData.petImage.trim() : null,
-      state: ''
+      state: selectedState
     });
   } catch (error) {
     console.error("Failed to create playdate:", error);
@@ -194,32 +204,70 @@ const handleSearch = () => {
 
 // load posts from backend (initially and when searching)
 async function fetchPlaydates(params?: { city?: string; q?: string; page?: number; limit?: number }) {
+  const id = ++latestReq.current;
+  setLoading(true);
   try {
-    const { data }: { data: { items: any[] } } = await api.get("/playdates", { params });
-    // backend returns { items, page, limit }
+    const response = await api.get("/playdates", { params });
+    const data: any = response.data || {};
+
+    // ignore if a newer request finished first
+    if (id !== latestReq.current) return;
+
+    if (!data || !Array.isArray(data.items)) {
+      console.warn("Unexpected /playdates response:", data);
+      return; // keep current posts
+    }
+
     // map to your current card shape
-    const rows = (data.items ?? []).map((p: any) => ({
+    const rows = data.items.map((p: any) => ({
       id: p.id,
       user: `User #${p.author_id ?? "?"}`,
       time: new Date(p.created_at ?? Date.now()).toLocaleString(),
       title: p.title,
       city: p.city,
       state: p.state,
-      image: p.image_url || "https://via.placeholder.com/800x400.png?text=Playdate",
+      image: abs(p.image_url) || "https://via.placeholder.com/800x400.png?text=Playdate",
       description: p.description,
       likes: 0,
       comments: 0,
     }));
-    setPosts(rows);
-    setFilteredPosts(rows);
+
+    // If backend returns empty, don't blank the UI
+    if (rows.length > 0) {
+      setPosts(rows);
+      setFilteredPosts(rows);
+    }
   } catch (err: any) {
-    showAlert("Error", err?.response?.data?.error ?? "Failed to load playdates.");
+    console.warn("fetchPlaydates failed:", err?.message || err);
+    // keep previous posts on error to avoid blink-to-empty
+    if ((!posts || posts.length === 0) && typeof Alert !== "undefined") {
+      const message = err?.response?.data?.error ?? "Failed to load playdates.";
+      Alert.alert("Error", message);
+    }
+  } finally {
+    if (id === latestReq.current) setLoading(false);
   }
 }
 
 useEffect(() => {
   fetchPlaydates(); // load all on mount
 }, []);
+
+if (hasValidPostId) {
+  // Detail view with comments for a specific post
+  return (
+    <View style={{ flex: 1, padding: 16 }}>
+      <Text style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
+        Playdate Details
+      </Text>
+      <CreateComments
+        postId={postIdNum}  // number
+        fetchComments={getComments}
+        addComment={addComment}
+      />
+    </View>
+  );
+}
 
 return (
   <View style={styles.container}>
@@ -420,7 +468,6 @@ return (
   </View>
 );
 }
-
 
 // Stylesheet
 const styles = StyleSheet.create({

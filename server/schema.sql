@@ -34,8 +34,13 @@ CREATE TABLE IF NOT EXISTS community_posts(
 );
 CREATE TABLE IF NOT EXISTS comments(
   id INTEGER PRIMARY KEY,
-  post_id INTEGER REFERENCES community_posts(id),
-  author_id INTEGER REFERENCES users(id),
+  post_type TEXT NOT NULL CHECK (post_type IN ('community','playdate')),
+  post_id INTEGER NOT NULL,
+  author_id INTEGER NOT NULL REFERENCES users(id),
   body TEXT NOT NULL,
-  created_at TEXT
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_type, post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_author ON comments(author_id);
+CREATE INDEX IF NOT EXISTS idx_comments_created ON comments(created_at);
