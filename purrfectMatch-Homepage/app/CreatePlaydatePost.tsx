@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-import { createPlaydatePost } from "./api/playdates";
+import { createPlaydatePost } from "../api/playdates";
 
 export default function CreatePlaydatePost() {
   const router = useRouter();

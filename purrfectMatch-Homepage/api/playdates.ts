@@ -14,6 +14,18 @@ export type PlaydateCreateDTO = {
   image_url?: string | null;
 };
 
+// Add a comment to a playdate post
+export async function addComment(postId: number, content: string) {
+  const { data } = await api.post("/comments", { postId, content });
+  return data;
+}
+
+// Fetch comments for a specific playdate post
+export async function getComments(postId: number) {
+  const { data } = await api.get("/comments", { params: { postId } });
+  return data as { items: { id: number; author_id: number; content: string; created_at: string }[] };
+}
+
 export async function createPlaydatePost(dto: PlaydateCreateDTO) {
   const { data } = await api.post("/playdates", dto);
   return data;

@@ -4,7 +4,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 
 // Allow tests to override: DB_PATH=":memory:"
-const DEFAULT_DB_PATH = "./db/purrfectmatch.db";
+const DEFAULT_DB_PATH = path.resolve(process.cwd(), "db", "purrfectmatch.db");
 const DB_PATH = process.env.DB_PATH || DEFAULT_DB_PATH;
 
 export type BetterDb = Database.Database;
