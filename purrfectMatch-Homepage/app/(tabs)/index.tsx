@@ -37,7 +37,7 @@ const initialPosts = [
    petType: 'Rabbit',
    category: 'Resource',
    description: 'Looking for a good vet for small pets near Portland!',
-   image: 'https://images.unsplash.com/photo-1558944351-cd0e597c6f82?auto=format&fit=crop&w=800&q=80',
+   image: 'https://vetsonbalwyn.com.au/wp-content/uploads/2015/04/Rabbit-Facts.jpg',
    likes: 5,
    comments: 1,
  },
@@ -156,7 +156,7 @@ export default function CommunityScreen() {
              <View key={post.id} style={[styles.card, { width: dynamicCardWidth }]}>
                <View style={styles.cardHeader}>
                  <Image
-                   source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                   source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
                    style={styles.profilePic}
                  />
                  <View>
