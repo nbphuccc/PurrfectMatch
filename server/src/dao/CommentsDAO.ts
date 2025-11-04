@@ -1,7 +1,10 @@
 import db from "../index.js";
 
+export type PostType = 'community' | 'playdate';
+
 export interface Comment {
   id: number;
+  post_type: PostType;
   post_id: number;
   author_id: number;
   body: string;
@@ -11,6 +14,7 @@ export interface Comment {
 }
 
 export interface NewComment {
+  post_type: PostType;
   post_id: number;
   author_id: number;
   body: string;

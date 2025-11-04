@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import React from 'react';
+import { CreateComments } from "../CreateComments";
+import { addComment, getComments } from "../../api/community";
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const posts = [
@@ -12,10 +14,28 @@ const posts = [
 
 export default function CommunityScreen() {
   const router = useRouter();
+  const { postId } = useLocalSearchParams(); // Access route parameters
+  const postIdNum = Array.isArray(postId) ? Number(postId[0]) : Number(postId);
+  const hasValidPostId = postId !== undefined && !Number.isNaN(postIdNum);
+
+  // If we HAVE a postId, show details + comments
+  if (hasValidPostId) {
+    return (
+      <View style={{ flex: 1, padding: 16 }}>
+        <Text style={{ fontSize: 22, fontWeight: '700', marginBottom: 8 }}>
+          Community Post Details
+        </Text>
+        <CreateComments
+          postId={postIdNum}
+          fetchComments={getComments}
+          addComment={addComment}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      
       {/* Posts */}
       <FlatList
         data={posts}
