@@ -1,24 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import {
-  Alert,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 
 const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
 const CATEGORIES = ['Resource', 'Care', 'Other'];
 
 
-const initialPosts = [
+type Post = {
+  id: number;
+  user: string;
+  time: string;
+  petType: string;
+  category: string;
+  description: string;
+  image?: string;
+  likes: number;
+  comments: number;
+};
+
+const initialPosts: Post[] = [
  {
    id: 1,
    user: 'Lily',
@@ -44,22 +45,29 @@ const initialPosts = [
 ];
 
 
+type FormData = {
+  petType: string;
+  category: string;
+  description: string;
+  image: string;
+};
+
 export default function CommunityScreen() {
  const [showForm, setShowForm] = useState(false);
- const [formData, setFormData] = useState({
+ const [formData, setFormData] = useState<FormData>({
    petType: '',
    category: '',
    description: '',
    image: '',
  });
- const [errors, setErrors] = useState({
+ const [errors, setErrors] = useState<Partial<Record<keyof FormData, boolean>>>({
    description: false,
  });
- const [posts, setPosts] = useState(initialPosts);
- const [filteredPosts, setFilteredPosts] = useState(initialPosts);
+ const [posts, setPosts] = useState<Post[]>(initialPosts);
+ const [filteredPosts, setFilteredPosts] = useState<Post[]>(initialPosts);
  const [petModalVisible, setPetModalVisible] = useState(false);
  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
- const { width } = useWindowDimensions(); // dynamically track screen width
+ const { width } = useWindowDimensions(); 
 
 
  const showAlert = (title: string, message: string) => {
@@ -71,10 +79,10 @@ export default function CommunityScreen() {
  };
 
 
- const handleInputChange = (key: string, value: string) => {
-   setFormData({ ...formData, [key]: value });
-   if (errors[key as 'description']) {
-     setErrors({ ...errors, [key]: false });
+ const handleInputChange = (key: keyof FormData, value: string) => {
+   setFormData(prev => ({ ...prev, [key]: value }));
+   if (key === 'description') {
+     setErrors(prev => ({ ...prev, description: false }));
    }
  };
 
@@ -96,8 +104,9 @@ export default function CommunityScreen() {
      time: 'Just now',
      petType: formData.petType || 'All Pets',
      category: formData.category || 'Other',
-     description: trimmedDesc,
-     image: formData.image || 'https://via.placeholder.com/800x400.png?text=Community+Post',
+    description: trimmedDesc,
+    // Only include an image when the user provided one. Avoid placeholder images.
+    image: formData.image ? formData.image : undefined,
      likes: 0,
      comments: 0,
    };
@@ -139,6 +148,7 @@ export default function CommunityScreen() {
            <View style={styles.searchBox}>
              <TextInput
                placeholder="Search by pet type (e.g. Cat)"
+               placeholderTextColor="#888"
                style={styles.searchInput}
                value={formData.petType}
                onChangeText={text => handleInputChange('petType', text)}
@@ -164,8 +174,10 @@ export default function CommunityScreen() {
                    <Text style={styles.time}>{post.time}</Text>
                  </View>
                </View>
-               <Image source={{ uri: post.image }} style={styles.cardImage} />
                <Text style={styles.description}>{post.description}</Text>
+               {post.image ? (
+                 <Image source={{ uri: post.image }} style={styles.cardImage} />
+               ) : null}
              </View>
            ))}
          </ScrollView>
@@ -280,20 +292,75 @@ export default function CommunityScreen() {
 
 
 const styles = StyleSheet.create({
- container: { flex: 1, backgroundColor: '#fff' },
- header: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginTop: 40, color: '#000' },
- searchContainer: { flexDirection: 'row', margin: 16, alignItems: 'center' },
- searchBox: { flex: 1, flexDirection: 'row', backgroundColor: '#f2f2f2', alignItems: 'center', paddingHorizontal: 10, borderRadius: 8 },
- searchInput: { flex: 1, paddingVertical: 6 },
- searchIcon: { padding: 6 },
- dropdown: { backgroundColor: '#f2f2f2', paddingHorizontal: 12, paddingVertical: 10, marginTop: 5, borderRadius: 8 },
- dropdownText: { color: '#333' },
- modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 20 },
- modalContent: { backgroundColor: '#fff', borderRadius: 12, maxHeight: '70%', padding: 10 },
- modalItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
- modalItemText: { fontSize: 16 },
- modalCancel: { padding: 12, alignItems: 'center' },
- feed: { flex: 1, paddingHorizontal: 16 },
+ container: { 
+  flex: 1, 
+  backgroundColor: '#fff' 
+},
+ header: { 
+  fontSize: 22, 
+  fontWeight: 'bold', 
+  textAlign: 'center', 
+  marginTop: 40, 
+  color: '#000' 
+},
+ searchContainer: { 
+  flexDirection: 'row', 
+  margin: 16, 
+  alignItems: 'center' 
+},
+ searchBox: { 
+  flex: 1, 
+  flexDirection: 'row', 
+  backgroundColor: '#f2f2f2', 
+  alignItems: 'center', 
+  paddingHorizontal: 10, 
+  borderRadius: 8 
+},
+ searchInput: { 
+  flex: 1, 
+  paddingVertical: 6 
+},
+ searchIcon: { 
+  padding: 6 
+},
+ dropdown: { 
+  backgroundColor: '#f2f2f2', 
+  paddingHorizontal: 12, 
+  paddingVertical: 10, 
+  marginTop: 5, 
+  borderRadius: 8 
+},
+ dropdownText: { 
+  color: '#333' 
+},
+ modalBackground: { 
+  flex: 1, 
+  backgroundColor: 'rgba(0,0,0,0.3)', 
+  justifyContent: 'center', 
+  padding: 20 
+},
+ modalContent: { 
+  backgroundColor: '#fff', 
+  borderRadius: 12, 
+  maxHeight: '70%', 
+  padding: 10 
+},
+ modalItem: { 
+  padding: 12, 
+  borderBottomWidth: 1, 
+  borderBottomColor: '#eee' 
+},
+ modalItemText: { 
+  fontSize: 16 
+},
+ modalCancel: { 
+  padding: 12, 
+  alignItems: 'center' 
+},
+ feed: { 
+  flex: 1, 
+  paddingHorizontal: 16 
+},
  card: {
    backgroundColor: '#fff',
    borderRadius: 12,
@@ -304,28 +371,86 @@ const styles = StyleSheet.create({
    shadowRadius: 4,
    elevation: 3,
  },
- cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
- profilePic: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
- username: { fontWeight: '600', fontSize: 15 },
- time: { color: '#666', fontSize: 12 },
+ cardHeader: { 
+  flexDirection: 'row', 
+  alignItems: 'center', 
+  marginBottom: 8 
+},
+ profilePic: { 
+  width: 36, 
+  height: 36, 
+  borderRadius: 18, 
+  marginRight: 10 
+},
+ username: { 
+  fontWeight: '600', 
+  fontSize: 15 
+},
+ time: { 
+  color: '#666', 
+  fontSize: 12 
+},
  cardImage: {
    width: '100%',
    height: undefined,
    aspectRatio: 4 / 3,
    borderRadius: 8,
    resizeMode: 'cover',
-   objectFit: 'cover',
    marginTop: 6,
  },
- description: { color: '#444', marginTop: 8 },
- fab: { position: 'absolute', bottom: 30, right: 30, backgroundColor: '#3B82F6', width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4 },
- formContainer: { flexGrow: 1, justifyContent: 'center', padding: 20 },
- formTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
- label: { fontSize: 16, marginTop: 10 },
- input: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginTop: 5, borderRadius: 8, backgroundColor: '#fff' },
- errorInput: { borderColor: '#FF6B6B' },
- button: { padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 16 },
- buttonText: { fontWeight: 'bold', color: '#000' },
+ description: { 
+  color: '#444', 
+  marginTop: 8 
+},
+ fab: { 
+  position: 'absolute', 
+  bottom: 30, 
+  right: 30, 
+  backgroundColor: '#3B82F6', 
+  width: 60, 
+  height: 60, 
+  borderRadius: 30, 
+  justifyContent: 'center', 
+  alignItems: 'center', 
+  shadowColor: '#000', 
+  shadowOpacity: 0.25, 
+  shadowRadius: 4 
+},
+ formContainer: { 
+  flexGrow: 1, 
+  justifyContent: 'center', 
+  padding: 20 
+},
+ formTitle: { 
+  fontSize: 22, 
+  fontWeight: 'bold', 
+  marginBottom: 20, 
+  textAlign: 'center' },
+ label: { 
+  fontSize: 16, 
+  marginTop: 10 
+},
+ input: { 
+  borderWidth: 1, 
+  borderColor: '#ccc', 
+  padding: 10, 
+  marginTop: 5, 
+  borderRadius: 8, 
+  backgroundColor: '#fff' 
+},
+ errorInput: { 
+  borderColor: '#FF6B6B' 
+},
+ button: { 
+  padding: 12, 
+  borderRadius: 10, 
+  alignItems: 'center', 
+  marginTop: 16 
+},
+ buttonText: { 
+  fontWeight: 'bold', 
+  color: '#000' 
+},
 });
 
 
