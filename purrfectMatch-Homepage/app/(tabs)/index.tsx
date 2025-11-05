@@ -44,6 +44,13 @@ const initialPosts = [
 ];
 
 
+type FormData = {
+  petType: string;
+  category: string;
+  description: string;
+  image: string;
+};
+
 export default function CommunityScreen() {
  const [showForm, setShowForm] = useState(false);
  const [formData, setFormData] = useState({
