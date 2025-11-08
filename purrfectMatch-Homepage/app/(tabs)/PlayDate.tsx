@@ -150,7 +150,7 @@ const handleSubmit = async () => {
       dog_breed: trimmedBreed,
       address: formData.address?.trim() || "TBD",
       city: trimmedCity,
-      zip: formData.zip?.trim() || "", // Added zip property
+      zip: formData.zip?.trim() || "98055", // Added placeholder zip property
       when_at: whenAt,
       place: trimmedCity, // or a dedicated place field if you add it to the form
       image_url: formData.petImage?.trim() ? formData.petImage.trim() : null,
