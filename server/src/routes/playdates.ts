@@ -38,26 +38,7 @@ router.post("/", (req, res) => {
   const err = requireFields(req.body, [
     "author_id","title","description","dog_breed","address","city","state","zip","when_at","place"
   ]);
-  if (err) {
-    // Debug: log the received body and which field failed validation
-    console.warn('[playdates] validation failed:', err, 'body:', req.body);
-    // Avoid echoing full request bodies back to clients in production.
-    // For development we include a minimal, sanitized snapshot to help debugging.
-    const devBody = process.env.NODE_ENV === 'development'
-      ? {
-        author_id: req.body?.author_id,
-        title: req.body?.title,
-        dog_breed: req.body?.dog_breed,
-        city: req.body?.city,
-        state: req.body?.state,
-        zip: req.body?.zip,
-        when_at: req.body?.when_at,
-        place: req.body?.place,
-      }
-      : undefined;
-
-    return res.status(400).json(devBody ? { error: err, body: devBody } : { error: err });
-  }
+  if (err) return res.status(400).json({ error: err });
 
   const {
     author_id, title, description, dog_breed, address,
@@ -115,35 +96,35 @@ router.delete("/:id", (req, res) => {
 
 // GET /playdates/:id/comments
 router.get("/:id/comments", (req, res) => {
-  const postId = Number(req.params.id);
-  const items = db.prepare(
-    `SELECT * FROM comments WHERE post_type = 'playdate' AND post_id = ? ORDER BY datetime(created_at) ASC`
-  ).all(postId);
-  res.json({ items });
-});
-
-// POST /playdates/:id/comments
-// body: { author_id: number, body: string }
-router.post("/:id/comments", (req, res) => {
-  const postId = Number(req.params.id);
-
-  // ensure the playdate post exists
-  const post = db.prepare("SELECT id FROM playdate_posts WHERE id = ?").get(postId);
-  if (!post) return res.status(404).json({ error: "Playdate post not found" });
-
-  const err = requireFields(req.body, ["author_id", "body"]);
-  if (err) return res.status(400).json({ error: err });
-
-  const { author_id, body } = req.body;
-  const now = new Date().toISOString();
-  const info = db.prepare(`
+	const postId = Number(req.params.id);
+	const items = db.prepare(
+	  `SELECT * FROM comments WHERE post_type = 'playdate' AND post_id = ? ORDER BY datetime(created_at) ASC`
+	).all(postId);
+	res.json({ items });
+  });
+  
+  // POST /playdates/:id/comments
+  // body: { author_id: number, body: string }
+  router.post("/:id/comments", (req, res) => {
+	const postId = Number(req.params.id);
+  
+	// ensure the playdate post exists
+	const post = db.prepare("SELECT id FROM playdate_posts WHERE id = ?").get(postId);
+	if (!post) return res.status(404).json({ error: "Playdate post not found" });
+  
+	const err = requireFields(req.body, ["author_id", "body"]);
+	if (err) return res.status(400).json({ error: err });
+  
+	const { author_id, body } = req.body;
+	const now = new Date().toISOString();
+	const info = db.prepare(`
 	  INSERT INTO comments (post_type, post_id, author_id, body, created_at)
 	  VALUES ('playdate', ?, ?, ?, ?)
 	`).run(postId, Number(author_id), String(body), now);
-
-  const created = db.prepare("SELECT * FROM comments WHERE id = ?").get(info.lastInsertRowid);
-  res.status(201).json(created);
-});
+  
+	const created = db.prepare("SELECT * FROM comments WHERE id = ?").get(info.lastInsertRowid);
+	res.status(201).json(created);
+  });
 
 
 export default router;
