@@ -14,7 +14,8 @@
     "dev": "npm run build && (npm run dev:build & npm run dev:run)",
     "test": "cross-env NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
 	"lint": "eslint \"src/**/*.{ts,tsx}\" --fix",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+	"lint": "eslint \"src/**/*.{ts,tsx}\" --fix"
   },
   "keywords": [],
   "author": "",
