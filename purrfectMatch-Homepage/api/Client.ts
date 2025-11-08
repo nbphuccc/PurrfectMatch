@@ -1,6 +1,6 @@
 import axios from "axios";
-import Constants from "expo-constants";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 const fallback =
   Platform.OS === "android" ? "http://10.0.2.2:3000" : "http://127.0.0.1:3000";
