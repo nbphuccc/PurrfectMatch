@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { api, abs } from '../../api/Client';
 
 
 const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
@@ -11,7 +12,7 @@ const CATEGORIES = ['Resource', 'Care', 'Other'];
 type Post = {
   id: number;
   user: string;
-  time: string;
+  created_at?: string; // ISO timestamp from server or optimistic client
   petType: string;
   category: string;
   description: string;
@@ -25,7 +26,7 @@ const initialPosts: Post[] = [
  {
    id: 1,
    user: 'Lily',
-   time: '2 hrs ago',
+   created_at: '2025-11-07T06:00:00.000Z',
    petType: 'Cat',
    category: 'Care',
    description: 'Tips on grooming for long-haired cats!',
@@ -36,7 +37,7 @@ const initialPosts: Post[] = [
  {
    id: 2,
    user: 'Tom',
-   time: '1 day ago',
+   created_at: '2025-11-06T09:00:00.000Z',
    petType: 'Rabbit',
    category: 'Resource',
    description: 'Looking for a good vet for small pets near Portland!',
@@ -69,7 +70,46 @@ export default function CommunityScreen() {
   const [filteredPosts, setFilteredPosts] = useState<Post[]>(initialPosts);
   const [petModalVisible, setPetModalVisible] = useState(false);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { width } = useWindowDimensions(); 
+
+  // Format server-created timestamps into short relative strings.
+  const formatRelativeTime = (iso: string) => {
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return iso;
+    const diff = Date.now() - t;
+    const minute = 60_000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) {
+      return 'now';
+    }
+    if (diff < hour) {
+      return `${Math.floor(diff / minute)}m`;
+    }
+    if (diff < day) {
+      return `${Math.floor(diff / hour)}h`;
+    }
+    if (diff < 30 * day) {
+      return `${Math.floor(diff / day)}d`;
+    }
+    const d = new Date(t);
+    return `${d.getMonth() + 1}.${d.getDate()}.${d.getFullYear()}`;
+  };
+
+  const formatTimeValue = (v?: string | null) => {
+    if (!v) return '';
+    const parsed = Date.parse(v);
+    if (Number.isNaN(parsed)) return v;
+    return formatRelativeTime(v);
+  };
+
+  // tick to force re-render so relative times update as real time passes
+  const [, setTick] = useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30 * 1000); // every 30s
+    return () => clearInterval(id);
+  }, []);
 
 
   const showAlert = (title: string, message: string) => {
@@ -88,8 +128,8 @@ export default function CommunityScreen() {
     }
   };
 
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
     const trimmedDesc = formData.description.trim();
 
     if (!trimmedDesc) {
@@ -98,26 +138,73 @@ export default function CommunityScreen() {
       return;
     }
 
-    const newPost = {
-      id: posts.length + 1,
+    setIsSubmitting(true);
+
+    // preserve values before clearing the form
+    const petType = formData.petType || 'All Pets';
+    const category = formData.category || 'Other';
+    const image = formData.image ? formData.image : undefined;
+
+    // optimistic post (temporary id)
+    const tempId = Date.now();
+    const optimisticPost: Post = {
+      id: tempId,
       user: 'You',
-      time: 'Just now',
-      petType: formData.petType || 'All Pets',
-      category: formData.category || 'Other',
+      created_at: new Date().toISOString(),
+      petType,
+      category,
       description: trimmedDesc,
-      image: formData.image ? formData.image : undefined,
+      image,
       liked: false,
       likes: 0,
       comments: 0,
     };
 
-
-    setPosts([newPost, ...posts]);
-    setFilteredPosts([newPost, ...posts]);
+    setPosts(prev => [optimisticPost, ...prev]);
+    setFilteredPosts(prev => [optimisticPost, ...prev]);
     setShowForm(false);
     setFormData({ petType: '', category: '', description: '', image: '' });
-    showAlert('Success!', 'Your community post has been submitted!');
+
+    const dto = { petType: formData.petType || null, category: formData.category || null, description: trimmedDesc, image: formData.image || null };
+
+    let saved: any = null;
+    try {
+      const res = await api.post('/community', dto);
+      saved = res.data;
+    } catch (e) {
+      // network or server error — leave saved as null so we rollback
+      saved = null;
+    }
+
+    if (saved && saved.id) {
+      // Map server response to Post shape
+      const rawImage = saved.image_url ?? saved.image ?? image;
+      const mapped: Post = {
+        id: Number(saved.id),
+        user: saved.author_name || saved.author_username || 'Unknown',
+        created_at: saved.created_at ?? saved.createdAt ?? undefined,
+        petType: petType,
+        category: category,
+        description: saved.description ?? trimmedDesc,
+        image: rawImage ? abs(rawImage) : undefined,
+        liked: false,
+        likes: saved.likes ?? 0,
+        comments: saved.comments ?? 0,
+      };
+
+      setPosts(prev => prev.map(p => (p.id === tempId ? mapped : p)));
+      setFilteredPosts(prev => prev.map(p => (p.id === tempId ? mapped : p)));
+      showAlert('Success!', 'Your community post has been submitted!');
+    } else {
+      // rollback optimistic post
+      setPosts(prev => prev.filter(p => p.id !== tempId));
+      setFilteredPosts(prev => prev.filter(p => p.id !== tempId));
+      showAlert('Submission failed', 'Could not send post to server. Please try again later.');
+    }
+
+    setIsSubmitting(false);
   };
+
 
 
   const handleSearch = (petType: string) => {
@@ -192,7 +279,7 @@ export default function CommunityScreen() {
                     params: {
                       id: String(post.id),
                       user: post.user,
-                      time: post.time,
+                      time: post.created_at ?? '',
                       petType: post.petType,
                       category: post.category,
                       description: post.description,
@@ -212,7 +299,7 @@ export default function CommunityScreen() {
                     
                     <View>
                       <Text style={styles.username}>{post.user}</Text>
-                      <Text style={styles.time}>{post.time}</Text>
+                      <Text style={styles.time}>{formatTimeValue(post.created_at)}</Text>
                     </View>
                   </View>
 
@@ -244,7 +331,7 @@ export default function CommunityScreen() {
                           params: {
                             id: String(post.id),
                             user: post.user,
-                            time: post.time,
+                            time: post.created_at ?? '',
                             petType: post.petType,
                             category: post.category,
                             description: post.description,
@@ -357,8 +444,12 @@ export default function CommunityScreen() {
           />
 
 
-          <TouchableOpacity style={[styles.button, { backgroundColor: '#F7D9C4' }]} onPress={handleSubmit}>
-            <Text style={styles.buttonText}>Submit</Text>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#F7D9C4' }, isSubmitting && { opacity: 0.6 }]}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.buttonText}>{isSubmitting ? 'Submitting...' : 'Submit'}</Text>
           </TouchableOpacity>
 
 
