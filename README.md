@@ -1,16 +1,13 @@
 # 🐾 Purrfect Match
 
-Purrfect Match is a lightweight mobile app designed to connect pet owners through a community-driven playdate and resource board. Unlike adoption platforms such as Petfinder, our app focuses on building local connections between pet owners.
+Purrfect Match is a lightweight mobile app designed to connect pet owners through a community-driven playdate and resource board. Unlike adoption platforms such as Petfinder, our app focuses on building local connections between pet owners. Our goal is to create a fun, mobile-first way for owners to discover events, share knowledge, and connect with others in their area.
 
-Playdates Tab: Dog-focused posts to find nearby play buddies.
+**Playdates Tab:** Dog-focused posts to find nearby play buddies.
 
-Community Tab: A shared board for cats, rabbits, and small pets — for tips, resources, and pet sitting arrangements.
+**Community Tab:** A shared board for cats, rabbits, and small pets — for tips, resources, and pet sitting arrangements.
 
-Goal: Create a fun, mobile-first way for owners to discover events, share knowledge, and connect with others in their area.
 
----
-
-## Features (MVP)
+## What are Purrfect Match features?
 
 - Browse playdates board based on location (city input)
 - Create playdate posts (time, place, pet info, contact)
@@ -18,26 +15,38 @@ Goal: Create a fun, mobile-first way for owners to discover events, share knowle
 - Community Tab: Posts for all pets (cats, rabbits, small pets) — pet sitting, tips, and resources
 - Post details with photos, description, location, and contact email/URL
 - Keyword search on community board
-  
-**Stretch Goals:**  
-- Simple filters: type (dog/cat) + location (ZIP/City) + radius
-- Extra filters: age, size
-- Map view (find playdates by pins)
-- Pet care tips page with species-specific content
-- Local pet owner uploads (photos/media)
-- Post expiry and auto-removal after a set time
-- Messaging between pet owners
 
----
+## Prerequisites
+Before installing Purrfect Match, make sure you have the following.
+- **Node.js** (version 18 or higher)
+- **npm** (comes with Node)
+- **Expo Go App**
+  - **iOS:** Download from the [App Store](https://apps.apple.com/app/expo-go/id982107779)
+  - **Android:** Download from the [Google Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent)
 
-## Tech Stack
+## Installation & Run Instructions
 
-- **Frontend:** React Native + Expo  
-- **Backend:** Node.js + Express (account system, posts CRUD endpoints)
-- **Database:** SQLite
-- **Design:** Figma for UI/UX mockups  
+### 1. Clone the Repository
+```
+git clone https://github.com/nbphuccc/PurrfectMatch.git
+cd PurrfectMatch
+```
+### 2. In Terminal A, install dependencies and run backend
+```
+cd server
+npm install
+npm rebuild better-sqlite3
+npm start
+```
+### 3. In Terminal B, install dependencies and run frontend
+```
+cd purrfectMatch-Homepage
+npm install
+npm start
+```
+### 4. Scan the QR code that show up in terminal using Expo Go on your phone, or go to localhost:8081 for web access
 
----
+
 
 ## Repository Structure
 
@@ -57,16 +66,57 @@ Goal: Create a fun, mobile-first way for owners to discover events, share knowle
   - **index.ts** - Entry point: creates and starts Express app
   
   
- 
-
 - **App** – React Native app (Expo)  
   - **assets/** – Images, icons  
   - **components/** – Reusable UI components  
   - **screens/** – App screens (Browse, Detail, Favorites, Tips)  
   - **navigation/** – React Navigation setup  
-  - **app.js** – Entry point for React Native  
+  - **app.js** – Entry point for React Native
 
-- **Docs** – Documentation  
+
+## Reporting Bugs
+
+If you encounter any issues, please report them on the GitHub Issues page:  
+🔗 [https://github.com/nbphuccc/PurrfectMatch/issues](https://github.com/nbphuccc/PurrfectMatch/issues)
+
+When reporting a bug, include:
+- Steps to reproduce the issue  
+- Expected vs. actual behavior  
+- Device type (iOS or Android)  
+- Screenshots (if applicable)
+
+**Bug Report Template:**
+```
+**Title:** [Bug] Short description of the issue
+
+**Description:**
+Briefly describe what went wrong and how it affects the app.
+
+**Steps to Reproduce:**
+1. Go to [...]
+2. Tap [...]
+3. Observe [...]
+
+**Expected Behavior:**
+Describe what you expected to happen.
+
+**Actual Behavior:**
+Describe what actually happens instead.
+
+**Environment:**
+- Device: (e.g., iPhone 13 / Samsung S22)
+- OS Version: (e.g., iOS 17.2 / Android 14)
+- Network: (Wi-Fi / Cellular)
+
+**Screenshots or Logs:**
+If applicable, attach images, console errors, or screenshots.
+
+**Additional Notes:**
+Any other context that might help identify the issue.
+
+```
+
+## Documentation  
   - **Living Document** https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.ypct95m4pes8
   - **User Manual Google Doc** - https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.xhk44xm02hj6
   - **Developer Guidelines Google Doc** - https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.19ziwlhegglo
