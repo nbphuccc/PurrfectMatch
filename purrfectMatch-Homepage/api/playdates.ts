@@ -31,6 +31,7 @@ export async function createPlaydatePost(dto: PlaydateCreateDTO) {
   return data;
 }
 
+// Fetch a list of playdate posts with optional filters
 export async function listPlaydates(params?: { city?: string; q?: string; page?: number; limit?: number }) {
   const { data } = await api.get("/playdates", { params });
   return data as { items: any[]; page: number; limit: number };
