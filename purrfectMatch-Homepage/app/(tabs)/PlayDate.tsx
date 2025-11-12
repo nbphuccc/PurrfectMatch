@@ -13,13 +13,23 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { addComment, getComments } from "../../api/playdates";
+import { addComment, getComments, createPlaydatePost, listPlaydates } from "../../api/playdates";
 import { CreateComments } from "../CreateComments";
 
+/**
+ * PlaydateScreen
+ *
+ * Responsibilities:
+ * - Load the list of playdate posts from the backend (GET /playdates) on mount
+ * - Provide a small search/filter UI (client-side) for city + state
+ * - Show a form for creating a new playdate which POSTs to the backend
+ * - When a playdate is successfully created, refresh the feed from the server
+ */
+
 const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
 const initialPosts = [
@@ -77,8 +87,10 @@ export default function PlaydateScreen() {
   const [selectedState, setSelectedState] = useState('WA');
   const [modalVisible, setModalVisible] = useState(false);
   const [formModalVisible, setFormModalVisible] = useState(false);
-  const [posts, setPosts] = useState(initialPosts);
-  const [filteredPosts, setFilteredPosts] = useState(initialPosts);
+  const [posts, setPosts] = useState<typeof initialPosts>([]);
+  const [filteredPosts, setFilteredPosts] = useState<typeof initialPosts>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const { width } = useWindowDimensions();
   const dynamicCardWidth =
@@ -96,6 +108,11 @@ export default function PlaydateScreen() {
       setErrors({ ...errors, [key]: false });
     }
   };
+
+  // --- Form submission flow ---
+  // Validates required fields locally, then POSTs to the backend via
+  // `createPlaydatePost`. On success we clear the form and re-load the
+  // canonical feed with `listPlaydates()` so UI matches the server.
 
   const handleSubmit = async () => {
     const trimmedTime = formData.time.trim();
@@ -131,62 +148,57 @@ export default function PlaydateScreen() {
 
     const whenAt = `${trimmedDate} ${trimmedTime}`;
 
-    // createPlaydatePost({
-    //   author_id: 1,
-    //   title: `Playdate with ${trimmedBreed}`,
-    //   description:
-    //     formData.description.trim() ||
-    //     `${trimmedBreed} playdate scheduled!`,
-    //   dog_breed: trimmedBreed,
-    //   address: formData.address?.trim() || 'TBD',
-    //   city: trimmedCity,
-    //   zip: formData.zip?.trim() || '',
-    //   when_at: whenAt,
-    //   place: trimmedCity,
-    //   image_url: formData.petImage?.trim()
-    //     ? formData.petImage.trim()
-    //     : null,
-    //   state: selectedState,
-    // }).catch((error) => {
-    //   console.error('Failed to create playdate:', error);
-    //   Alert.alert('Error', 'Failed to create playdate. Please try again.');
-    // });
+    try {
+      setLoading(true);
+      const created = await createPlaydatePost({
+        author_id: 1,
+        title: `Playdate with ${trimmedBreed}`,
+        description:
+          formData.description.trim() ||
+          `${trimmedBreed} playdate scheduled!`,
+        dog_breed: trimmedBreed,
+        address: formData.address?.trim() || 'TBD',
+        city: trimmedCity,
+        zip: formData.zip?.trim() || '98055', // default zip
+        when_at: whenAt,
+        place: trimmedCity,
+        image_url: formData.petImage?.trim()
+          ? formData.petImage.trim()
+          : null,
+        state: selectedState,
+      });
 
+      // clear form and close
+      setShowForm(false);
+      setFormData({
+        time: '',
+        date: '',
+        petBreed: '',
+        city: '',
+        contactInfo: '',
+        petImage: '',
+        description: '',
+        address: '',
+        zip: '',
+      });
 
-    const newPost = {
-      id: posts.length + 1,
-      user: 'You',
-      time: 'Just now',
-      title: `Playdate with ${formData.petBreed}`,
-      city: trimmedCity,
-      state: selectedState,
-      image: formData.petImage ? formData.petImage : undefined,
-      description:
-        formData.description.trim() ||
-        `${formData.petBreed} playdate scheduled!`,
-      likes: 0,
-      comments: 0,
-    };
-
-    setShowForm(false);
-    setFormData({
-      time: '',
-      date: '',
-      petBreed: '',
-      city: '',
-      contactInfo: '',
-      petImage: '',
-      description: '',
-      address: '',
-      zip: '',
-    });
-
-    setTimeout(() => {
-      setPosts((prev) => [newPost, ...prev]);
-      setFilteredPosts((prev) => [newPost, ...prev]);
-    }, 150);
-
-    showAlert('Success!', 'Your playdate has been submitted!');
+      // refresh from server so UI reflects canonical data
+      try {
+        const res = await listPlaydates();
+        setPosts(res.items);
+        setFilteredPosts(res.items);
+        showAlert('Success!', 'Your playdate has been submitted!');
+      } catch (err) {
+        console.error('Failed to reload playdates after create', err);
+        // still show success but inform user we couldn't refresh
+        showAlert('Success!', 'Your playdate was submitted but the feed could not be refreshed.');
+      }
+    } catch (error) {
+      console.error('Failed to create playdate:', error);
+      Alert.alert('Error', 'Failed to create playdate. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSearch = () => {
@@ -201,6 +213,35 @@ export default function PlaydateScreen() {
     );
     setFilteredPosts(results);
   };
+
+  // --- Data loading ---
+  // On mount, fetch playdates from the backend and populate `posts` and
+  // `filteredPosts`. We keep a `mounted` flag to avoid setting state if the
+  // component unmounts while the fetch is in-flight.
+
+  // load playdates from backend on mount
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await listPlaydates();
+        if (!mounted) return;
+        setPosts(res.items);
+        setFilteredPosts(res.items);
+      } catch (err: any) {
+        console.error('Failed to load playdates', err);
+        setLoadError(err?.message || 'Failed to load playdates');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   if (hasValidPostId) {
     return (
@@ -230,6 +271,12 @@ export default function PlaydateScreen() {
           <Text style={styles.header}>
             One Simple Post, One Fun Play Date!
           </Text>
+          {loading && (
+            <Text style={{ textAlign: 'center', marginTop: 8 }}>Loading feed...</Text>
+          )}
+          {loadError && (
+            <Text style={{ textAlign: 'center', marginTop: 8, color: 'red' }}>{loadError}</Text>
+          )}
 
           <View style={styles.searchContainer}>
             <View style={styles.searchBox}>
