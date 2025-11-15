@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router'
 import React, { useState } from 'react'
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native'
+import { signup } from "../api/auth";
 
 export default function signUp() {
   const router = useRouter()
@@ -10,43 +11,45 @@ export default function signUp() {
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
-    if (!email || !username || !password) {
-      Alert.alert("Error", "Please fill out all fields");
-      return;
-    }
+  if (!email || !username || !password) {
+    Alert.alert("Error", "Please fill out all fields");
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const response = await fetch("http://10.0.0.243:3000/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, username, password }),
-      });
+  try {
+    // Call modular Axios signup
+    const data = await signup({ email, username, password });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert("Success", "Account created successfully!", [
-          {
-            text: "OK",
-            onPress: () => router.push("../profile"), //navigate to login screen
-          },
-        ]);
-        setEmail("");
-        setUsername("");
-        setPassword("");
-      } else {
-        //here the backend can send back a messege why it fail
-        Alert.alert("Signup failed", data.message || "Something went wrong");
-      }
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Could not connect to server");
-    } finally {
+    // Check backend 'ok' field
+    if (data.ok) {
       setLoading(false);
+      Alert.alert("Success", data.message, [
+        {
+          text: "OK",
+          onPress: () => router.push("../profile"), // navigate to profile/login screen
+        },
+      ]);
+
+      // Reset form
+      setEmail("");
+      setUsername("");
+      setPassword("");
+    } else {
+      // Backend returned ok: false
+      Alert.alert("Signup failed", data.message || "Something went wrong");
+      setLoading(false);
+      console.log(data.message)
     }
-  };
+  } catch (error: any) {
+    // Network error or HTTP error >=400
+    const message = error.response?.data?.message || "Could not connect to server";
+    Alert.alert("Signup failed", message);
+    setLoading(false);
+    console.error(error);
+  }
+};
 
   return (
     <View style={styles.container}>
