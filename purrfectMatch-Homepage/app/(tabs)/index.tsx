@@ -153,24 +153,6 @@ export default function CommunityScreen() {
     const category = dto.category || 'Other';
     const image = dto.image ? dto.image : undefined;
 
-    const tempId = Date.now();
-    const optimisticPost: Post = {
-      id: tempId,
-      user: 'You',
-      created_at: new Date().toISOString(),
-      petType,
-      category,
-      description: trimmedDesc,
-      image,
-      liked: false,
-      likes: 0,
-      comments: 0,
-    };
-
-    setPosts(prev => [optimisticPost, ...prev]);
-    setFilteredPosts(prev => [optimisticPost, ...prev]);
-    setShowForm(false);
-
     // Build client DTO (UI-friendly) and let createCommunityPost map to server shape
     const clientDto = { petType, category, description: trimmedDesc, image: image ?? null };
     let saved: any = null;
@@ -182,38 +164,22 @@ export default function CommunityScreen() {
     }
 
     if (saved && saved.id) {
-      const rawImage = saved.image_url ?? saved.image ?? image;
-      const mapped: Post = {
-        id: Number(saved.id),
-        user: saved.author_name || saved.author_username || 'Unknown',
-        created_at: saved.created_at ?? saved.createdAt ?? undefined,
-        petType: petType,
-        category: category,
-        description: saved.description ?? trimmedDesc,
-        image: rawImage ? abs(rawImage) : undefined,
-        liked: false,
-        likes: saved.likes ?? 0,
-        comments: saved.comments ?? 0,
-      };
-
-      setPosts(prev => prev.map(p => (p.id === tempId ? mapped : p)));
-      setFilteredPosts(prev => prev.map(p => (p.id === tempId ? mapped : p)));
-      showAlert('Success!', 'Your community post has been submitted!');
+      // refresh feed from server to get canonical data
+      try {
+        const res = await listCommunity();
+        setPosts(res.items);
+        setFilteredPosts(res.items);
+        setShowForm(false);
+        showAlert('Success!', 'Your community post has been submitted!');
+      } catch (err) {
+        // server created the post but we couldn't reload the feed
+        showAlert('Success', 'Your post was created but the feed could not be refreshed.');
+      }
     } else {
-      setPosts(prev => prev.filter(p => p.id !== tempId));
-      setFilteredPosts(prev => prev.filter(p => p.id !== tempId));
       showAlert('Submission failed', 'Could not send post to server. Please try again later.');
     }
 
     setIsSubmitting(false);
-    // refresh feed from server to get canonical data
-    try {
-      const res = await listCommunity();
-      setPosts(res.items);
-      setFilteredPosts(res.items);
-    } catch (err) {
-      // ignore — we already handled optimistic mapping above
-    }
   };
 
 
