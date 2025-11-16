@@ -12,9 +12,18 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "declaration": false,
-    "types": ["node"],
-    "isolatedModules": true
+    "types": [
+      "node"
+    ],
+    "isolatedModules": true,
+    "noEmit": false
   },
-  "include": ["src"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ],
+  "extends": "expo/tsconfig.base"
 }
