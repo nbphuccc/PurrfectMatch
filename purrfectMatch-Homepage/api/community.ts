@@ -1,10 +1,12 @@
 import { api } from "./Client";
 
+// Client-side create DTO: includes UI fields petType and category.
+// createCommunityPost maps this shape to the server-required fields.
 export type CommunityCreateDTO = {
-  author_id: number;
-  title: string;
+  petType?: string | null;
+  category?: string | null;
   description: string;
-  image_url?: string | null;
+  image?: string | null;
 };
 
 // Add a comment to a playdate post
@@ -20,7 +22,16 @@ export async function getComments(postId: number) {
 }
 
 export async function createCommunityPost(dto: CommunityCreateDTO) {
-  const { data } = await api.post("/community", dto);
+  // Map client DTO to server DTO expected by server/src/routes/community.ts
+  // For now, we default author_id to 1 (to be replaced with actual user ID later)
+  const serverDto = {
+    author_id: 1,
+    title: `${dto.category ?? 'Other'} - ${dto.petType ?? 'All Pets'}`,
+    description: dto.description,
+    image_url: dto.image ?? null,
+  };
+
+  const { data } = await api.post("/community", serverDto);
   return data;
 }
 

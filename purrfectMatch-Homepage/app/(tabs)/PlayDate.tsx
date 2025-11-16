@@ -13,7 +13,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { addComment, getComments, createPlaydatePost, listPlaydates } from "../../api/playdates";
+import { addComment, getComments, createPlaydatePost, listPlaydates, createPlaydateFirebase, listPlaydatesFirebase } from "../../api/playdates";
 import { CreateComments } from "../CreateComments";
 
 /**
@@ -43,6 +43,7 @@ const initialPosts = [
     image:
       'https://paradepets.com/.image/w_3840,q_auto:good,c_limit/NTowMDAwMDAwMDAwMDMzNDg5/shutterstock_246276190_1200x800.jpg',
     description: "We’re hosting a playdate at Green Lake this Saturday!",
+    whenAt: 'Saturday 2:00 PM',
     likes: 21,
     comments: 4,
   },
@@ -56,6 +57,7 @@ const initialPosts = [
     image:
       'https://cdn.britannica.com/84/232784-050-1769B477/Siberian-Husky-dog.jpg',
     description: 'Join us for a morning walk at Volunteer Park tomorrow!',
+    whenAt: 'Saturday 2:00 PM',
     likes: 15,
     comments: 2,
   },
@@ -119,17 +121,17 @@ export default function PlaydateScreen() {
     const trimmedDate = formData.date.trim();
     const trimmedBreed = formData.petBreed.trim();
     const trimmedCity = formData.city.trim();
-
+  
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     const isDateValid = dateRegex.test(trimmedDate);
-
+  
     const newErrors = {
       time: !trimmedTime,
       date: !isDateValid,
       petBreed: !trimmedBreed,
       city: !trimmedCity,
     };
-
+  
     if (
       newErrors.time ||
       newErrors.date ||
@@ -145,30 +147,26 @@ export default function PlaydateScreen() {
       );
       return;
     }
-
     const whenAt = `${trimmedDate} ${trimmedTime}`;
-
     try {
       setLoading(true);
-      const created = await createPlaydatePost({
-        author_id: 1,
+      console.log('About to create playdate in Firebase...');
+      // USE FIREBASE INSTEAD OF SERVER
+      await createPlaydateFirebase({
+        authorId: 1,
+        username: 'Guest',
         title: `Playdate with ${trimmedBreed}`,
-        description:
-          formData.description.trim() ||
-          `${trimmedBreed} playdate scheduled!`,
-        dog_breed: trimmedBreed,
+        description: formData.description.trim() || `${trimmedBreed} playdate scheduled!`,
+        dogBreed: trimmedBreed,
         address: formData.address?.trim() || 'TBD',
         city: trimmedCity,
-        zip: formData.zip?.trim() || '98055', // default zip
-        when_at: whenAt,
-        place: trimmedCity,
-        image_url: formData.petImage?.trim()
-          ? formData.petImage.trim()
-          : null,
         state: selectedState,
+        zip: formData.zip?.trim() || '98055',
+        whenAt: whenAt,
+        place: trimmedCity,
+        imageUrl: formData.petImage?.trim() || undefined,
       });
-
-      // clear form and close
+      console.log('Playdate created! Refreshing feed...');
       setShowForm(false);
       setFormData({
         time: '',
@@ -181,20 +179,31 @@ export default function PlaydateScreen() {
         address: '',
         zip: '',
       });
-
-      // refresh from server so UI reflects canonical data
+      // REFRESH FROM FIREBASE
       try {
-        const res = await listPlaydates();
-        setPosts(res.items);
-        setFilteredPosts(res.items);
-        showAlert('Success!', 'Your playdate has been submitted!');
+        const firebasePosts = await listPlaydatesFirebase();
+        const formattedPosts = firebasePosts.map((post, index) => ({
+          id: index + 1,
+          user: post.username,
+          time: new Date(post.createdAt).toLocaleString(),
+          title: post.title,
+          city: post.city,
+          state: post.state,
+          image: post.imageUrl || '',
+          description: post.description,
+          whenAt: post.whenAt,
+          likes: 0,
+          comments: 0,
+        }));
+        setPosts(formattedPosts);
+        setFilteredPosts(formattedPosts);
+        showAlert('Success!', 'Your playdate has been posted to Firebase!');
       } catch (err) {
-        console.error('Failed to reload playdates after create', err);
-        // still show success but inform user we couldn't refresh
+        console.error('Failed to reload playdates from Firebase', err);
         showAlert('Success!', 'Your playdate was submitted but the feed could not be refreshed.');
       }
     } catch (error) {
-      console.error('Failed to create playdate:', error);
+      console.error('Failed to create playdate in Firebase:', error);
       Alert.alert('Error', 'Failed to create playdate. Please try again.');
     } finally {
       setLoading(false);
@@ -226,12 +235,28 @@ export default function PlaydateScreen() {
       setLoading(true);
       setLoadError(null);
       try {
-        const res = await listPlaydates();
+        //LOAD FROM FIREBASE
+        const firebasePosts = await listPlaydatesFirebase();
         if (!mounted) return;
-        setPosts(res.items);
-        setFilteredPosts(res.items);
+        
+        const formattedPosts = firebasePosts.map((post, index) => ({
+          id: index + 1,
+          user: post.username,
+          time: new Date(post.createdAt).toLocaleString(),
+          title: post.title,
+          city: post.city,
+          state: post.state,
+          image: post.imageUrl || '',
+          description: post.description,
+          whenAt: post.whenAt,
+          likes: 0,
+          comments: 0,
+        }));
+        
+        setPosts(formattedPosts);
+        setFilteredPosts(formattedPosts);
       } catch (err: any) {
-        console.error('Failed to load playdates', err);
+        console.error('Failed to load playdates from Firebase', err);
         setLoadError(err?.message || 'Failed to load playdates');
       } finally {
         if (mounted) setLoading(false);
@@ -359,6 +384,8 @@ export default function PlaydateScreen() {
                   </View>
                 </View>
                 <Text style={styles.cardTitle}>{post.title}</Text>
+                <Text style={styles.location}>{post.city}, {post.state}</Text>
+                {post.whenAt && (<Text style={styles.whenAt}>{post.whenAt}</Text>)}
                 <Text
                   style={[
                     styles.description,
@@ -589,6 +616,9 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     marginRight: 10,
+    backgroundColor: '#e0e0e0', // Gray background
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   username: { fontWeight: '600', fontSize: 15 },
   time: { color: '#666', fontSize: 12 },
@@ -599,6 +629,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'left',
   },
+  location: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   cardImage: {
     width: '100%',
     height: undefined,
@@ -606,6 +642,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     resizeMode: 'cover',
     marginTop: 6,
+  },
+  whenAt: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 8,
   },
   description: {
     color: '#444',
