@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { api, abs } from '../../api/Client';
+import { createCommunityPost, listCommunity } from '../../api/community';
 import CreateCommunityPost from '../CreateCommunityPost';
 
 
@@ -24,28 +25,28 @@ type Post = {
 };
 
 const initialPosts: Post[] = [
- {
-   id: 1,
-   user: 'Lily',
-   created_at: '2025-11-07T06:00:00.000Z',
-   petType: 'Cat',
-   category: 'Care',
-   description: 'Tips on grooming for long-haired cats!',
-   image: 'https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=800&q=80',
-   likes: 8,
-   comments: 2,
- },
- {
-   id: 2,
-   user: 'Tom',
-   created_at: '2025-11-06T09:00:00.000Z',
-   petType: 'Rabbit',
-   category: 'Resource',
-   description: 'Looking for a good vet for small pets near Portland!',
-   image: 'https://vetsonbalwyn.com.au/wp-content/uploads/2015/04/Rabbit-Facts.jpg',
-   likes: 5,
-   comments: 1,
- },
+  {
+    id: 1,
+    user: 'Lily',
+    created_at: '2025-11-07T06:00:00.000Z',
+    petType: 'Cat',
+    category: 'Care',
+    description: 'Tips on grooming for long-haired cats!',
+    image: 'https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=800&q=80',
+    likes: 8,
+    comments: 2,
+  },
+  {
+    id: 2,
+    user: 'Tom',
+    created_at: '2025-11-06T09:00:00.000Z',
+    petType: 'Rabbit',
+    category: 'Resource',
+    description: 'Looking for a good vet for small pets near Portland!',
+    image: 'https://vetsonbalwyn.com.au/wp-content/uploads/2015/04/Rabbit-Facts.jpg',
+    likes: 5,
+    comments: 1,
+  },
 ];
 
 
@@ -58,11 +59,14 @@ type FormData = {
 
 export default function CommunityScreen() {
   const [showForm, setShowForm] = useState(false);
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
-  const [filteredPosts, setFilteredPosts] = useState<Post[]>(initialPosts);
+  // start empty and load from server on mount
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchPetType, setSearchPetType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { width } = useWindowDimensions(); 
+  const { width } = useWindowDimensions();
 
   // Format server-created timestamps into short relative strings.
   const formatRelativeTime = (iso: string) => {
@@ -100,6 +104,28 @@ export default function CommunityScreen() {
   React.useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 30 * 1000); // every 30s
     return () => clearInterval(id);
+  }, []);
+
+  // Load community posts from backend on mount
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await listCommunity();
+        if (!mounted) return;
+        setPosts(res.items);
+        setFilteredPosts(res.items);
+      } catch (err: any) {
+        console.error('Failed to load community posts', err);
+        if (mounted) setLoadError(err?.message || 'Failed to load community posts');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
 
@@ -145,10 +171,12 @@ export default function CommunityScreen() {
     setFilteredPosts(prev => [optimisticPost, ...prev]);
     setShowForm(false);
 
+    // Build client DTO (UI-friendly) and let createCommunityPost map to server shape
+    const clientDto = { petType, category, description: trimmedDesc, image: image ?? null };
     let saved: any = null;
     try {
-      const res = await api.post('/community', dto);
-      saved = res.data;
+      const res = await createCommunityPost(clientDto);
+      saved = res;
     } catch (e) {
       saved = null;
     }
@@ -178,6 +206,14 @@ export default function CommunityScreen() {
     }
 
     setIsSubmitting(false);
+    // refresh feed from server to get canonical data
+    try {
+      const res = await listCommunity();
+      setPosts(res.items);
+      setFilteredPosts(res.items);
+    } catch (err) {
+      // ignore — we already handled optimistic mapping above
+    }
   };
 
 
@@ -222,22 +258,28 @@ export default function CommunityScreen() {
       {!showForm && (
         <>
           <Text style={styles.header}>Share, Ask, and Help Other Pet Owners!</Text>
+          {loading && (
+            <Text style={{ textAlign: 'center', marginTop: 8 }}>Loading posts...</Text>
+          )}
+          {loadError && (
+            <Text style={{ textAlign: 'center', marginTop: 8, color: 'red' }}>{loadError}</Text>
+          )}
 
 
           {/* Search bar */}
           <View style={styles.searchContainer}>
-              <View style={styles.searchBox}>
-                <TextInput
-                  placeholder="Search by pet type (e.g. Cat)"
-                  placeholderTextColor="#888"
-                  style={styles.searchInput}
-                  value={searchPetType}
-                  onChangeText={text => setSearchPetType(text)}
-                />
-                <TouchableOpacity onPress={() => handleSearch(searchPetType)} style={styles.searchIcon}>
-                  <Ionicons name="search" size={20} color="#888" />
-                </TouchableOpacity>
-              </View>
+            <View style={styles.searchBox}>
+              <TextInput
+                placeholder="Search by pet type (e.g. Cat)"
+                placeholderTextColor="#888"
+                style={styles.searchInput}
+                value={searchPetType}
+                onChangeText={text => setSearchPetType(text)}
+              />
+              <TouchableOpacity onPress={() => handleSearch(searchPetType)} style={styles.searchIcon}>
+                <Ionicons name="search" size={20} color="#888" />
+              </TouchableOpacity>
+            </View>
           </View>
 
 
@@ -271,7 +313,7 @@ export default function CommunityScreen() {
                       source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
                       style={styles.profilePic}
                     />
-                    
+
                     <View>
                       <Text style={styles.username}>{post.user}</Text>
                       <Text style={styles.time}>{formatTimeValue(post.created_at)}</Text>
@@ -346,74 +388,74 @@ export default function CommunityScreen() {
 
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#fff' 
+  container: {
+    flex: 1,
+    backgroundColor: '#fff'
   },
-  header: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    textAlign: 'center', 
-    marginTop: 40, 
-    color: '#000' 
+  header: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 40,
+    color: '#000'
   },
-  searchContainer: { 
-    flexDirection: 'row', 
-    margin: 16, 
-    alignItems: 'center' 
+  searchContainer: {
+    flexDirection: 'row',
+    margin: 16,
+    alignItems: 'center'
   },
-  searchBox: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    backgroundColor: '#f2f2f2', 
-    alignItems: 'center', 
-    paddingHorizontal: 10, 
-    borderRadius: 8 
+  searchBox: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#f2f2f2',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 8
   },
-  searchInput: { 
-    flex: 1, 
-    paddingVertical: 6 
+  searchInput: {
+    flex: 1,
+    paddingVertical: 6
   },
-  searchIcon: { 
-    padding: 6 
+  searchIcon: {
+    padding: 6
   },
-  dropdown: { 
-    backgroundColor: '#f2f2f2', 
-    paddingHorizontal: 12, 
-    paddingVertical: 10, 
-    marginTop: 5, 
-    borderRadius: 8 
+  dropdown: {
+    backgroundColor: '#f2f2f2',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 5,
+    borderRadius: 8
   },
-  dropdownText: { 
-    color: '#333' 
+  dropdownText: {
+    color: '#333'
   },
-  modalBackground: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.3)', 
-    justifyContent: 'center', 
-    padding: 20 
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    padding: 20
   },
-  modalContent: { 
-    backgroundColor: '#fff', 
-    borderRadius: 12, 
-    maxHeight: '70%', 
-    padding: 10 
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    maxHeight: '70%',
+    padding: 10
   },
-  modalItem: { 
-    padding: 12, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#eee' 
+  modalItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee'
   },
-  modalItemText: { 
-    fontSize: 16 
+  modalItemText: {
+    fontSize: 16
   },
-  modalCancel: { 
-    padding: 12, 
-    alignItems: 'center' 
+  modalCancel: {
+    padding: 12,
+    alignItems: 'center'
   },
-  feed: { 
-    flex: 1, 
-    paddingHorizontal: 16 
+  feed: {
+    flex: 1,
+    paddingHorizontal: 16
   },
   card: {
     backgroundColor: '#fff',
@@ -425,24 +467,24 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  cardHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginBottom: 8 
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8
   },
-  profilePic: { 
-    width: 36, 
-    height: 36, 
-    borderRadius: 18, 
-    marginRight: 10 
+  profilePic: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 10
   },
-  username: { 
-    fontWeight: '600', 
-    fontSize: 15 
+  username: {
+    fontWeight: '600',
+    fontSize: 15
   },
-  time: { 
-    color: '#666', 
-    fontSize: 12 
+  time: {
+    color: '#666',
+    fontSize: 12
   },
   cardImage: {
     width: '100%',
@@ -459,57 +501,58 @@ const styles = StyleSheet.create({
     marginTop: 6,
     backgroundColor: 'transparent',
   },
-  description: { 
-    color: '#444', 
-    marginTop: 8 
+  description: {
+    color: '#444',
+    marginTop: 8
   },
-  fab: { 
-    position: 'absolute', 
-    bottom: 30, 
-    right: 30, 
-    backgroundColor: '#3B82F6', 
-    width: 60, 
-    height: 60, 
-    borderRadius: 30, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    shadowColor: '#000', 
-    shadowOpacity: 0.25, 
-    shadowRadius: 4 
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    backgroundColor: '#3B82F6',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4
   },
-  formContainer: { 
-    flexGrow: 1, 
-    justifyContent: 'center', 
-    padding: 20 
+  formContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 20
   },
-  formTitle: { 
-    fontSize: 22, 
-    fontWeight: 'bold', 
-    marginBottom: 20, 
-    textAlign: 'center' },
-  label: { 
-    fontSize: 16, 
-    marginTop: 10 
+  formTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center'
   },
-  input: { 
-    borderWidth: 1, 
-    borderColor: '#ccc', 
-    padding: 10, 
-    marginTop: 5, 
-    borderRadius: 8, 
-    backgroundColor: '#fff' 
+  label: {
+    fontSize: 16,
+    marginTop: 10
   },
-  errorInput: { 
-    borderColor: '#FF6B6B' 
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    marginTop: 5,
+    borderRadius: 8,
+    backgroundColor: '#fff'
   },
-  button: { 
-    padding: 12, 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    marginTop: 16 
+  errorInput: {
+    borderColor: '#FF6B6B'
   },
-  buttonText: { 
-    fontWeight: 'bold', 
-    color: '#000' 
+  button: {
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 16
+  },
+  buttonText: {
+    fontWeight: 'bold',
+    color: '#000'
   },
 });
