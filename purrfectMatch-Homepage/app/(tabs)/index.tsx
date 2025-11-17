@@ -1,20 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { api, abs } from '../../api/Client';
-import { createCommunityPost, listCommunity } from '../../api/community';
+import { createCommunityPost, listCommunity, createCommunityPostFirebase, listCommunityPostsFirebase } from '../../api/community';
 import CreateCommunityPost from '../CreateCommunityPost';
-
 
 const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
 const CATEGORIES = ['Resource', 'Care', 'Other'];
 
-
 type Post = {
   id: number;
+  firebaseId: string;
   user: string;
-  created_at?: string; // ISO timestamp from server or optimistic client
+  created_at?: string;
   petType: string;
   category: string;
   description: string;
@@ -24,42 +24,8 @@ type Post = {
   comments: number;
 };
 
-const initialPosts: Post[] = [
-  {
-    id: 1,
-    user: 'Lily',
-    created_at: '2025-11-07T06:00:00.000Z',
-    petType: 'Cat',
-    category: 'Care',
-    description: 'Tips on grooming for long-haired cats!',
-    image: 'https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=800&q=80',
-    likes: 8,
-    comments: 2,
-  },
-  {
-    id: 2,
-    user: 'Tom',
-    created_at: '2025-11-06T09:00:00.000Z',
-    petType: 'Rabbit',
-    category: 'Resource',
-    description: 'Looking for a good vet for small pets near Portland!',
-    image: 'https://vetsonbalwyn.com.au/wp-content/uploads/2015/04/Rabbit-Facts.jpg',
-    likes: 5,
-    comments: 1,
-  },
-];
-
-
-type FormData = {
-  petType: string;
-  category: string;
-  description: string;
-  image: string;
-};
-
 export default function CommunityScreen() {
   const [showForm, setShowForm] = useState(false);
-  // start empty and load from server on mount
   const [posts, setPosts] = useState<Post[]>([]);
   const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,7 +34,6 @@ export default function CommunityScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { width } = useWindowDimensions();
 
-  // Format server-created timestamps into short relative strings.
   const formatRelativeTime = (iso: string) => {
     const t = Date.parse(iso);
     if (Number.isNaN(t)) return iso;
@@ -99,35 +64,56 @@ export default function CommunityScreen() {
     return formatRelativeTime(v);
   };
 
-  // tick to force re-render so relative times update as real time passes
   const [, setTick] = useState(0);
   React.useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30 * 1000); // every 30s
+    const id = setInterval(() => setTick(t => t + 1), 30 * 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Load community posts from backend on mount
-  React.useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const res = await listCommunity();
-        if (!mounted) return;
-        setPosts(res.items);
-        setFilteredPosts(res.items);
-      } catch (err: any) {
-        console.error('Failed to load community posts', err);
-        if (mounted) setLoadError(err?.message || 'Failed to load community posts');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    load();
-    return () => { mounted = false; };
+  // ⭐ Extract load function so we can reuse it
+  const loadPosts = React.useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      console.log('🔥 Loading community posts from Firebase...');
+      const firebasePosts = await listCommunityPostsFirebase();
+      
+      const formattedPosts = firebasePosts.map((post, index) => ({
+        id: index + 1,
+        firebaseId: post.id,
+        user: post.username,
+        created_at: post.createdAt.toISOString(),
+        petType: post.petType,
+        category: post.category,
+        description: post.description,
+        image: post.imageUrl,
+        likes: post.likes,
+        comments: post.comments,
+      }));
+      
+      console.log(`✅ Loaded ${formattedPosts.length} posts from Firebase`);
+      setPosts(formattedPosts);
+      setFilteredPosts(formattedPosts);
+    } catch (err: any) {
+      console.error('❌ Failed to load community posts from Firebase', err);
+      setLoadError(err?.message || 'Failed to load community posts');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  // 🔥 Load on mount
+  React.useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
+
+  // ⭐ Reload when screen comes back into focus (after viewing a post)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Screen focused, refreshing posts...');
+      loadPosts();
+    }, [loadPosts])
+  );
 
   const showAlert = (title: string, message: string) => {
     if (typeof window !== 'undefined' && window.alert) {
@@ -137,7 +123,7 @@ export default function CommunityScreen() {
     }
   };
 
-
+  // 🔥 Submit to Firebase
   const handleCreateFromComponent = async (dto: { petType?: string | null; category?: string | null; description: string; image?: string | null }) => {
     if (isSubmitting) return;
     const trimmedDesc = dto.description.trim();
@@ -153,36 +139,29 @@ export default function CommunityScreen() {
     const category = dto.category || 'Other';
     const image = dto.image ? dto.image : undefined;
 
-    // Build client DTO (UI-friendly) and let createCommunityPost map to server shape
-    const clientDto = { petType, category, description: trimmedDesc, image: image ?? null };
-    let saved: any = null;
     try {
-      const res = await createCommunityPost(clientDto);
-      saved = res;
-    } catch (e) {
-      saved = null;
-    }
+      console.log('🔥 Creating community post in Firebase...');
+      
+      await createCommunityPostFirebase({
+        authorId: 1,
+        username: 'Guest',
+        petType,
+        category,
+        description: trimmedDesc,
+        imageUrl: image,
+      });
 
-    if (saved && saved.id) {
-      // refresh feed from server to get canonical data
-      try {
-        const res = await listCommunity();
-        setPosts(res.items);
-        setFilteredPosts(res.items);
-        setShowForm(false);
-        showAlert('Success!', 'Your community post has been submitted!');
-      } catch (err) {
-        // server created the post but we couldn't reload the feed
-        showAlert('Success', 'Your post was created but the feed could not be refreshed.');
-      }
-    } else {
-      showAlert('Submission failed', 'Could not send post to server. Please try again later.');
+      console.log('🎉 Community post created! Refreshing feed...');
+      await loadPosts(); // ⭐ Use the shared load function
+      setShowForm(false);
+      showAlert('Success!', '🎉 Your community post has been posted to Firebase!');
+    } catch (error) {
+      console.error('❌ Failed to create community post in Firebase:', error);
+      showAlert('Submission failed', 'Could not send post to Firebase. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
-
-
 
   const handleSearch = (petType: string) => {
     if (!petType.trim()) {
@@ -195,9 +174,6 @@ export default function CommunityScreen() {
     setFilteredPosts(results);
   };
 
-
-  // Compute a consistent numeric card width so every post has the same width.
-  // We subtract horizontal margins (32) so cards fit inside the padded container.
   const cardWidth = Math.max(300, Math.min(width - 32, 800));
   const router = useRouter();
 
@@ -218,21 +194,18 @@ export default function CommunityScreen() {
     );
   };
 
-
   return (
     <View style={styles.container}>
       {!showForm && (
         <>
           <Text style={styles.header}>Share, Ask, and Help Other Pet Owners!</Text>
           {loading && (
-            <Text style={{ textAlign: 'center', marginTop: 8 }}>Loading posts...</Text>
+            <Text style={{ textAlign: 'center', marginTop: 8 }}>Loading posts from Firebase...</Text>
           )}
           {loadError && (
             <Text style={{ textAlign: 'center', marginTop: 8, color: 'red' }}>{loadError}</Text>
           )}
 
-
-          {/* Search bar */}
           <View style={styles.searchContainer}>
             <View style={styles.searchBox}>
               <TextInput
@@ -248,19 +221,16 @@ export default function CommunityScreen() {
             </View>
           </View>
 
-
-          {/* Feed */}
           <ScrollView style={styles.feed} contentContainerStyle={{ alignItems: 'center' }}>
             {filteredPosts.map(post => (
               <TouchableOpacity
                 key={post.id}
                 activeOpacity={0.8}
                 onPress={() => {
-                  // navigate to the post detail route and pass fields as params
                   router.push({
                     pathname: '../communityPost',
                     params: {
-                      id: String(post.id),
+                      id: post.firebaseId,
                       user: post.user,
                       time: post.created_at ?? '',
                       petType: post.petType,
@@ -279,7 +249,6 @@ export default function CommunityScreen() {
                       source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
                       style={styles.profilePic}
                     />
-
                     <View>
                       <Text style={styles.username}>{post.user}</Text>
                       <Text style={styles.time}>{formatTimeValue(post.created_at)}</Text>
@@ -288,9 +257,7 @@ export default function CommunityScreen() {
 
                   <Text style={styles.description} numberOfLines={3}>{post.description}</Text>
                   {post.image ? (
-                    <View style={styles.cardImageContainer}>
-                      <Image source={{ uri: post.image }} style={styles.cardImage} />
-                    </View>
+                    <Image source={{ uri: post.image }} style={styles.cardImage} />
                   ) : null}
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
@@ -312,7 +279,7 @@ export default function CommunityScreen() {
                         router.push({
                           pathname: '../communityPost',
                           params: {
-                            id: String(post.id),
+                            id: post.firebaseId,
                             user: post.user,
                             time: post.created_at ?? '',
                             petType: post.petType,
@@ -340,7 +307,6 @@ export default function CommunityScreen() {
         </>
       )}
 
-
       {showForm && (
         <CreateCommunityPost
           onSubmit={handleCreateFromComponent}
@@ -351,7 +317,6 @@ export default function CommunityScreen() {
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -384,40 +349,6 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     padding: 6
-  },
-  dropdown: {
-    backgroundColor: '#f2f2f2',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 5,
-    borderRadius: 8
-  },
-  dropdownText: {
-    color: '#333'
-  },
-  modalBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    padding: 20
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    maxHeight: '70%',
-    padding: 10
-  },
-  modalItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee'
-  },
-  modalItemText: {
-    fontSize: 16
-  },
-  modalCancel: {
-    padding: 12,
-    alignItems: 'center'
   },
   feed: {
     flex: 1,
@@ -454,18 +385,11 @@ const styles = StyleSheet.create({
   },
   cardImage: {
     width: '100%',
-    height: '100%',
+    height: 250,
     borderRadius: 8,
-    resizeMode: 'cover',
-    marginTop: 0,
-  },
-  cardImageContainer: {
-    width: '100%',
-    height: 180,
-    borderRadius: 8,
-    overflow: 'hidden',
+    resizeMode: 'contain',
     marginTop: 6,
-    backgroundColor: 'transparent',
+    backgroundColor: '#f5f5f5',
   },
   description: {
     color: '#444',
@@ -484,41 +408,5 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 4
-  },
-  formContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20
-  },
-  formTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center'
-  },
-  label: {
-    fontSize: 16,
-    marginTop: 10
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
-    marginTop: 5,
-    borderRadius: 8,
-    backgroundColor: '#fff'
-  },
-  errorInput: {
-    borderColor: '#FF6B6B'
-  },
-  button: {
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 16
-  },
-  buttonText: {
-    fontWeight: 'bold',
-    color: '#000'
   },
 });

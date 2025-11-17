@@ -1,31 +1,32 @@
 import React from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { getCommentsFirebase, addCommentFirebase } from '../api/community';
 
 // lightweight relative formatter (matches feed behavior)
 const formatRelativeTime = (iso: string) => {
-    const t = Date.parse(iso);
-    if (Number.isNaN(t)) return iso;
-    const diff = Date.now() - t;
-    const minute = 60_000;
-    const hour = 60 * minute;
-    const day = 24 * hour;
-    if (diff < minute) {
-      return 'now';
-    }
-    if (diff < hour) {
-      return `${Math.floor(diff / minute)}m`;
-    }
-    if (diff < day) {
-      return `${Math.floor(diff / hour)}h`;
-    }
-    if (diff < 10 * day) {
-      return `${Math.floor(diff / day)}d`;
-    }
-    const d = new Date(t);
-    return `${d.getMonth() + 1}.${d.getDate()}.${d.getFullYear()}`;
-  };
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const diff = Date.now() - t;
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diff < minute) {
+    return 'now';
+  }
+  if (diff < hour) {
+    return `${Math.floor(diff / minute)}m`;
+  }
+  if (diff < day) {
+    return `${Math.floor(diff / hour)}h`;
+  }
+  if (diff < 10 * day) {
+    return `${Math.floor(diff / day)}d`;
+  }
+  const d = new Date(t);
+  return `${d.getMonth() + 1}.${d.getDate()}.${d.getFullYear()}`;
+};
 
 const formatTimeValue = (v?: string | null) => {
   if (!v) return '';
@@ -38,6 +39,8 @@ export default function PostDetail() {
   const params = useLocalSearchParams();
   const [comment, setComment] = useState('');
   const [commentsList, setCommentsList] = useState<Array<{ id: number; user: string; avatar?: string; text: string; created_at: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
   const { id, user, time, petType, category, description, image, likes, comments } = params as Record<string, string | undefined>;
@@ -48,7 +51,75 @@ export default function PostDetail() {
     return () => clearInterval(idt);
   }, []);
 
+  // Load comments from Firebase
+  React.useEffect(() => {
+    let mounted = true;
+    const loadComments = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        console.log('Loading comments from Firebase for post:', id);
+        const firebaseComments = await getCommentsFirebase(id);
+        if (!mounted) return;
+        
+        const formatted = firebaseComments.map((c, idx) => ({
+          id: idx + 1,
+          user: c.username,
+          avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          text: c.content,
+          created_at: c.createdAt.toISOString(),
+        }));
+        
+        console.log(`✅ Loaded ${formatted.length} comments from Firebase`);
+        setCommentsList(formatted);
+      } catch (error) {
+        console.error('Error loading comments:', error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    loadComments();
+    return () => { mounted = false; };
+  }, [id]);
+
   const displayedTime = formatTimeValue(time);
+
+  // 🔥 Submit comment to Firebase
+  const handlePostComment = async () => {
+    const trimmed = comment.trim();
+    if (!trimmed || !id) return;
+    
+    setSubmitting(true);
+    try {
+      console.log('Adding comment to Firebase...');
+      await addCommentFirebase({
+        postId: id as string,
+        authorId: 1, // TODO: Replace with actual user ID
+        username: 'GuestUser', // TODO: Replace with actual username
+        content: trimmed,
+      });
+      
+      console.log('Comment added! Reloading comments...');
+      
+      // Reload comments from Firebase
+      const firebaseComments = await getCommentsFirebase(id);
+      const formatted = firebaseComments.map((c, idx) => ({
+        id: idx + 1,
+        user: c.username,
+        avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+        text: c.content,
+        created_at: c.createdAt.toISOString(),
+      }));
+      
+      setCommentsList(formatted);
+      setComment('');
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      alert('Failed to post comment. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={styles.outer_container}>
@@ -58,6 +129,7 @@ export default function PostDetail() {
         <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
         <Text style={styles.description}>{description ?? ''}</Text>
         {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+        
         <View style={{ marginTop: 30 }}>
           <View style={styles.commentInputRow}>
             <Image
@@ -72,32 +144,27 @@ export default function PostDetail() {
               placeholder="Write a comment..."
               placeholderTextColor="#888"
               multiline
+              editable={!submitting}
             />
 
             <TouchableOpacity
-              onPress={() => {
-                const trimmed = comment.trim();
-                if (!trimmed) return;
-                const newComment = {
-                  id: Date.now(),
-                  user: 'You',
-                  avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-                  text: trimmed,
-                  created_at: new Date().toISOString(),
-                };
-                setCommentsList(prev => [newComment, ...prev]);
-                setComment('');
-              }}
-              style={[styles.postButton, !comment.trim() && { opacity: 0.45 }]}
-              disabled={!comment.trim()}
+              onPress={handlePostComment}
+              style={[styles.postButton, (!comment.trim() || submitting) && { opacity: 0.45 }]}
+              disabled={!comment.trim() || submitting}
             >
-              <Text style={styles.postButtonText}>Post</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.postButtonText}>Post</Text>
+              )}
             </TouchableOpacity>
           </View>
 
           {/* Comments list */}
           <View style={{ marginTop: 12 }}>
-            {commentsList.length === 0 ? (
+            {loading ? (
+              <Text style={{ color: '#888', textAlign: 'center' }}>Loading comments...</Text>
+            ) : commentsList.length === 0 ? (
               <Text style={{ color: '#888' }}>No comments yet - be the first to comment.</Text>
             ) : (
               commentsList.map(c => (
@@ -144,10 +211,11 @@ const styles = StyleSheet.create({
   },
   image: { 
     width: '100%', 
-    height: 240, 
+    height: 300, 
     borderRadius: 8, 
     marginTop: 12, 
-    resizeMode: 'cover' 
+    resizeMode: 'contain',
+    backgroundColor: '#f0f0f0', 
   },
   description: { 
     marginTop: 12, 
