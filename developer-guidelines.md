@@ -2,6 +2,7 @@
 
 ## 1) Obtain the Source Code
 - Ensure you have Node.js v18+, npm, Git, and Expo CLI.
+- Download Expo Go App from App Store or Google Play Store
 - Clone the repo:  
   `git clone "https://github.com/nbphuccc/PurrfectMatch"`
 - Enter the repo directory:  
@@ -12,7 +13,9 @@
 ## 2) Directory Structure
 
 ### purrfectMatch-Homepage/
-- **src/**: screens, navigation, components, features, services, store, hooks, utils  
+- **api/**: Firebase and REST API functions (community.ts, Client.ts)
+- **app/**: App screens and navigation
+- **(tabs)/**:screens, navigation, components, features, services, store, hooks, utils  
 - **assets/**: images, fonts  
 - **tests/**: frontend tests (`*.test.tsx`)  
 - **package.json**, **app.json** or **app.config.ts**
@@ -37,19 +40,12 @@
 ## 3) Build the Software
 
 ### 3.1 Prerequisites
-- Node.js v18+, npm, Git, Expo (use `npx expo`), SQLite driver (bundled by node module)
+- Node.js v18+, npm, Git, Expo (use `npx expo`), SQLite driver (bundled by node module), Firebase
 
 ### 3.2 Environment Variables
 
-#### Backend
-- PORT=3000
-- DATABASE_URL=file:./db/dev.db
-- JWT_SECRET=<your-random-secret>
-- JWT_EXPIRES_IN=7d
-- CORS_ORIGIN=* (or your Expo dev origin)
-
-#### Frontend
-- EXPO_PUBLIC_API_BASE_URL=http://localhost:3000
+#### Frontend (purrfectMatch-Homepage/.env)
+Get credentials from https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?pli=1&tab=t.hynt2e8dzz0y
 
 ### 3.3 Install & Run (Backend)
 1. `cd server`  
@@ -61,9 +57,10 @@
 
 ### 3.4 Install & Run (Frontend)
 1. `cd purrfectMatch-Homepage`  
-2. `npm install`  
-3. Start Expo: `npm start`  
-4. Launch: scan the QR code with Expo Go  
+2. `npm install`
+3. `touch .env` and paste the env credentials from the google docs link above  
+4. Start Expo: `npm start`  
+5. Launch: Scan the QR code with Expo Go  
 
 ---
 
