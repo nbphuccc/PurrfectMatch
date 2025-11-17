@@ -5,19 +5,27 @@ import { useState } from 'react';
 
 // lightweight relative formatter (matches feed behavior)
 const formatRelativeTime = (iso: string) => {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return iso;
-  const diff = Date.now() - t;
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-  if (diff < minute) return 'now';
-  if (diff < hour) return `${Math.floor(diff / minute)}m`;
-  if (diff < day) return `${Math.floor(diff / hour)}h`;
-  if (diff < 30 * day) return `${Math.floor(diff / day)}d`;
-  const d = new Date(t);
-  return `${d.getMonth() + 1}.${d.getDate()}.${d.getFullYear()}`;
-};
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return iso;
+    const diff = Date.now() - t;
+    const minute = 60_000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) {
+      return 'now';
+    }
+    if (diff < hour) {
+      return `${Math.floor(diff / minute)}m`;
+    }
+    if (diff < day) {
+      return `${Math.floor(diff / hour)}h`;
+    }
+    if (diff < 10 * day) {
+      return `${Math.floor(diff / day)}d`;
+    }
+    const d = new Date(t);
+    return `${d.getMonth() + 1}.${d.getDate()}.${d.getFullYear()}`;
+  };
 
 const formatTimeValue = (v?: string | null) => {
   if (!v) return '';

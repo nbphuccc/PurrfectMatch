@@ -85,7 +85,7 @@ export default function CommunityScreen() {
     if (diff < day) {
       return `${Math.floor(diff / hour)}h`;
     }
-    if (diff < 30 * day) {
+    if (diff < 10 * day) {
       return `${Math.floor(diff / day)}d`;
     }
     const d = new Date(t);
