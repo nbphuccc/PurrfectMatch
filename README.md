@@ -38,14 +38,35 @@ npm install
 npm rebuild better-sqlite3
 npm start
 ```
-### 3. In Terminal B, install dependencies and run frontend
+### 3. In Terminal B, set up Firebase and run frontend
+#### 3.1 Install dependencies
 ```
 cd purrfectMatch-Homepage
 npm install
+```
+#### 3.2 Configure Firebase
+Create a .env file in the purrfectMatch-Homepage directory:
+```
+touch .env
+```
+Get the .env file credentials in this google docs link: https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?pli=1&tab=t.hynt2e8dzz0y
+
+The .env file should look like:
+```
+FIREBASE_API_KEY=your_api_key_here
+FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+FIREBASE_APP_ID=your_app_id
+```
+Security Note: Never commit the .env file to Git. It's already in .gitignore.
+#### 3.3 Start the app
+```
 npm start
 ```
-### 4. Scan the QR code that show up in terminal using Expo Go on your phone, or go to localhost:8081 for web access
 
+### 4. Scan the QR code that show up in terminal using Expo Go on your phone
 
 
 ## Repository Structure
