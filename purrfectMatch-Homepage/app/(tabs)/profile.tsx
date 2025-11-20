@@ -1,43 +1,56 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform } from 'react-native';
+import { loginFirebase, logoutFirebase } from '../../api/firebaseAuth';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../config/firebase';
 
 const profile = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; username: string; email: string } | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const router = useRouter();
 
-  const handleLogIn = async () => {
-    if (!username || !password) {
-      if (Platform.OS === 'web') {
-        alert('Please fill out both fields');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser({
+          id: user.uid,
+          email: user.email!,
+          username: user.displayName || 'User',
+        });
+        setIsLoggedIn(true);
+        console.log('User logged in:', user.email);
       } else {
-        Alert.alert("Error", "Please fill out both fields");
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        console.log('User logged out');
       }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const handleLogIn = async () => {
+    setErrorMessage(null);
+    
+    if (!email || !password) {
+      setErrorMessage('Please fill out both fields');
       return;
     }
 
     setLoading(true);
 
     try {
-      const isEmail = username.includes('@'); // detect if it's an email
-      const loginData = isEmail
-      ? { email: username, password }
-      : { username, password };
+      console.log('Attempting Firebase login...');
+      const result = await loginFirebase({ email, password });
 
-      const response = await fetch("", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setIsLoggedIn(true);
+      if (result.ok) {
+        console.log('Login successful');
         if (Platform.OS === 'web') {
           alert('Signed in successfully');
           router.replace('/');
@@ -50,29 +63,23 @@ const profile = () => {
           ]);
         }
       } else {
-        if (Platform.OS === 'web') {
-          alert(data.message || 'Something went wrong');
-        } else {
-          Alert.alert("Signin failed", data.message || "Something went wrong");
-        }
+        console.log('Login failed:', result.message);
+        setErrorMessage(result.message || 'Login failed');
       }
-
     } catch (error) {
-      console.error(error);
-      if (Platform.OS === 'web') {
-        alert('Could not connect to server');
-      } else {
-        Alert.alert("Error", "Could not connect to server");
-      }
+      console.error('Login error:', error);
+      setErrorMessage('Could not connect to Firebase');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUsername('');
+  const handleLogout = async () => {
+    await logoutFirebase();
+    setEmail('');
     setPassword('');
+    setErrorMessage(null);
+    
     if (Platform.OS === 'web') {
       alert('You have been signed out.');
     } else {
@@ -80,33 +87,45 @@ const profile = () => {
     }
   };
 
-  //If user is NOT logged in, show login screen
-  if(!isLoggedIn){
+  if (!isLoggedIn) {
     return (
       <View style={styles.container}>
         <View style={styles.login}>
           <Text style={styles.title}>Login</Text>
 
-          <Text style={styles.account_create}>Username or Email</Text>
+          {errorMessage && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+            </View>
+          )}
+
+          <Text style={styles.account_create}>Email</Text>
           <TextInput
-            value={username}
-            onChangeText={setUsername}
-            placeholder="Enter username or email"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              setErrorMessage(null); // Clear error when typing
+            }}
+            placeholder="e.g., user@example.com"
             placeholderTextColor="#888"
             style={styles.input}
             autoCapitalize="none"
             keyboardType="email-address"
+            autoCorrect={false}
           />
 
           <Text style={styles.account_create}>Password</Text>
           <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Enter password"
-          placeholderTextColor="#888" 
-          style={styles.input}
-          autoCapitalize="none"
-          secureTextEntry={true}
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setErrorMessage(null); // Clear error when typing
+            }}
+            placeholder="Enter password"
+            placeholderTextColor="#888" 
+            style={styles.input}
+            autoCapitalize="none"
+            secureTextEntry={true}
           />
 
           <TouchableOpacity
@@ -139,11 +158,13 @@ const profile = () => {
     );
   }
 
-  //If user IS logged in, show profile screen
   return (
-      <View style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.login}>
-        <Text style={styles.title}>Welcome, {username}!</Text>
+        <Text style={styles.title}>Welcome, {currentUser?.username}!</Text>
+        <Text style={{ textAlign: 'center', color: '#555', marginBottom: 8 }}>
+          {currentUser?.email}
+        </Text>
         <Text style={{ textAlign: 'center', color: '#555', marginBottom: 20 }}>
           You are now logged in.
         </Text>
@@ -156,7 +177,7 @@ const profile = () => {
   );
 }
 
-export default profile
+export default profile;
 
 const styles = StyleSheet.create({
   container: {
@@ -176,6 +197,19 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorContainer: {
+    backgroundColor: '#fee',
+    borderLeftWidth: 4,
+    borderLeftColor: '#f00',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#c00',
+    fontSize: 14,
     textAlign: 'center',
   },
   account_create: {
@@ -204,10 +238,6 @@ const styles = StyleSheet.create({
     color: '#7b7b7bff', 
     textDecorationLine: 'underline'
   },
-  login_text: {
-    color: '#fff', 
-    fontWeight: '600'
-  },
   create_an_account: {
     fontSize: 14, 
     color: '#747373ff', 
@@ -218,4 +248,4 @@ const styles = StyleSheet.create({
     color: '#6d6d6dff', 
     textDecorationLine: 'underline'
   }
-})
+});
