@@ -14,7 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { addComment, getComments, createPlaydatePost, listPlaydates, createPlaydateFirebase, listPlaydatesFirebase } from "../../api/playdates";
-import { CreateComments } from "../CreateComments";
+import CreateComments from "../CreateComments";
 
 /**
  * PlaydateScreen
@@ -42,7 +42,7 @@ const initialPosts = [
     state: 'WA',
     image:
       'https://paradepets.com/.image/w_3840,q_auto:good,c_limit/NTowMDAwMDAwMDAwMDMzNDg5/shutterstock_246276190_1200x800.jpg',
-    description: "We’re hosting a playdate at Green Lake this Saturday!",
+    description: "We're hosting a playdate at Green Lake this Saturday!",
     whenAt: 'Saturday 2:00 PM',
     likes: 21,
     comments: 4,
@@ -151,6 +151,7 @@ export default function PlaydateScreen() {
     try {
       setLoading(true);
       console.log('About to create playdate in Firebase...');
+      
       // USE FIREBASE INSTEAD OF SERVER
       await createPlaydateFirebase({
         authorId: 1,
@@ -164,7 +165,7 @@ export default function PlaydateScreen() {
         zip: formData.zip?.trim() || '98055',
         whenAt: whenAt,
         place: trimmedCity,
-        imageUrl: formData.petImage?.trim() || undefined,
+        imageUrl: formData.petImage?.trim() || '',
       });
       console.log('Playdate created! Refreshing feed...');
       setShowForm(false);
@@ -280,11 +281,6 @@ export default function PlaydateScreen() {
         >
           Playdate Details
         </Text>
-        <CreateComments
-          postId={postIdNum}
-          fetchComments={getComments}
-          addComment={addComment}
-        />
       </View>
     );
   }

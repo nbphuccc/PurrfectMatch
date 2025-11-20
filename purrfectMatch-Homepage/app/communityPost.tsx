@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { getCommentsFirebase, addCommentFirebase } from '../api/community';
+import { getCurrentUser } from '../api/firebaseAuth';
 
-// lightweight relative formatter (matches feed behavior)
 const formatRelativeTime = (iso: string) => {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return iso;
@@ -51,7 +51,6 @@ export default function PostDetail() {
     return () => clearInterval(idt);
   }, []);
 
-  // Load comments from Firebase
   React.useEffect(() => {
     let mounted = true;
     const loadComments = async () => {
@@ -70,7 +69,7 @@ export default function PostDetail() {
           created_at: c.createdAt.toISOString(),
         }));
         
-        console.log(`✅ Loaded ${formatted.length} comments from Firebase`);
+        console.log(`Loaded ${formatted.length} comments from Firebase`);
         setCommentsList(formatted);
       } catch (error) {
         console.error('Error loading comments:', error);
@@ -84,24 +83,30 @@ export default function PostDetail() {
 
   const displayedTime = formatTimeValue(time);
 
-  // 🔥 Submit comment to Firebase
   const handlePostComment = async () => {
     const trimmed = comment.trim();
     if (!trimmed || !id) return;
+
+    // Check if user is logged in
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Please log in to comment.');
+      return;
+    }
     
     setSubmitting(true);
     try {
       console.log('Adding comment to Firebase...');
+      console.log('Current user:', currentUser.uid, currentUser.displayName);
       await addCommentFirebase({
         postId: id as string,
-        authorId: 1, // TODO: Replace with actual user ID
-        username: 'GuestUser', // TODO: Replace with actual username
+        authorId: currentUser.uid,
+        username: currentUser.displayName || 'User',
         content: trimmed,
       });
       
       console.log('Comment added! Reloading comments...');
       
-      // Reload comments from Firebase
       const firebaseComments = await getCommentsFirebase(id);
       const formatted = firebaseComments.map((c, idx) => ({
         id: idx + 1,
@@ -115,7 +120,7 @@ export default function PostDetail() {
       setComment('');
     } catch (error) {
       console.error('Error posting comment:', error);
-      alert('Failed to post comment. Please try again.');
+      Alert.alert('Error', 'Failed to post comment. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -160,7 +165,6 @@ export default function PostDetail() {
             </TouchableOpacity>
           </View>
 
-          {/* Comments list */}
           <View style={{ marginTop: 12 }}>
             {loading ? (
               <Text style={{ color: '#888', textAlign: 'center' }}>Loading comments...</Text>
