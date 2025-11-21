@@ -23,6 +23,7 @@ import { ImagePickerAsset } from 'expo-image-picker'; // optional, for typing
 // if you have a firebase config file:
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { app } from '../../config/firebase'; // adjust this path to whatever you use
+import { getCurrentUser } from '../../api/firebaseAuth';
 
 /**
  * PlaydateScreen
@@ -164,6 +165,11 @@ export default function PlaydateScreen() {
   // canonical feed with `listPlaydates()` so UI matches the server.
 
   const handleSubmit = async () => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Please log in to post.');
+      return;
+    }
     const trimmedTime = formData.time.trim();
     const trimmedDate = formData.date.trim();
     const trimmedBreed = formData.petBreed.trim();
@@ -231,8 +237,8 @@ export default function PlaydateScreen() {
 
       // USE FIREBASE INSTEAD OF SERVER
       await createPlaydateFirebase({
-        authorId: 1,
-        username: 'Guest',
+        authorId: currentUser.uid,
+        username: currentUser.displayName || 'User',
         title: `Playdate with ${trimmedBreed}`,
         description: formData.description.trim() || `${trimmedBreed} playdate scheduled!`,
         dogBreed: trimmedBreed,

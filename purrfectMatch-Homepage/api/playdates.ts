@@ -52,8 +52,8 @@ export async function listPlaydates(params?: { city?: string; q?: string; page?:
 // ==================== FIREBASE FUNCTIONS (NEW) ====================
 
 export interface PlaydatePostFirebase {
-  id?: string;
-  authorId: number;
+  id: string;
+  authorId: string;
   username: string;
   title: string;
   description: string;
