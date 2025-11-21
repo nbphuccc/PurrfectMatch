@@ -5,7 +5,7 @@ import { loginFirebase, logoutFirebase } from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 
-const profile = () => {
+export default function Profile() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -177,7 +177,7 @@ const profile = () => {
   );
 }
 
-export default profile;
+
 
 const styles = StyleSheet.create({
   container: {
