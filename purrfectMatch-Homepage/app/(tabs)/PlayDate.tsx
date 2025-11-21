@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  KeyboardAvoidingView, 
+  Platform, 
 } from 'react-native';
 import { addComment, getComments, createPlaydatePost, listPlaydates, createPlaydateFirebase, listPlaydatesFirebase } from "../../api/playdates";
 import CreateComments from "../CreateComments";
@@ -286,6 +288,11 @@ export default function PlaydateScreen() {
   }
 
   return (
+    <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+    >
     <View style={styles.container}>
       {!showForm && (
         <>
@@ -410,7 +417,10 @@ export default function PlaydateScreen() {
       )}
 
       {showForm && (
-        <ScrollView contentContainerStyle={styles.formContainer}>
+        <ScrollView
+        contentContainerStyle={styles.formContainer}
+        keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.formTitle}>Create a Playdate</Text>
 
           <Text style={styles.label}>Time (required):</Text>
@@ -536,7 +546,8 @@ export default function PlaydateScreen() {
           </TouchableOpacity>
         </ScrollView>
       )}
-    </View>
+      </View>
+      </KeyboardAvoidingView>
   );
 }
 
@@ -665,7 +676,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  formContainer: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+  formContainer: { flexGrow: 1, paddingBottom: 120, padding: 20 },
   formTitle: {
     fontSize: 22,
     fontWeight: 'bold',
