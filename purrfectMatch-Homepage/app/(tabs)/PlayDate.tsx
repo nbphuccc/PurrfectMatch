@@ -17,6 +17,12 @@ import {
 } from 'react-native';
 import { addComment, getComments, createPlaydatePost, listPlaydates, createPlaydateFirebase, listPlaydatesFirebase } from "../../api/playdates";
 import CreateComments from "../CreateComments";
+import * as ImagePicker from 'expo-image-picker';
+import { ImagePickerAsset } from 'expo-image-picker'; // optional, for typing
+
+// if you have a firebase config file:
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { app } from '../../config/firebase'; // adjust this path to whatever you use
 
 /**
  * PlaydateScreen
@@ -65,6 +71,21 @@ const initialPosts = [
   },
 ];
 
+async function uploadImageToStorage(uri: string): Promise<string> {
+  const storage = getStorage(app);
+
+  // Fetch the file data from the local URI
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  const filename = `playdates/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const storageRef = ref(storage, filename);
+
+  await uploadBytes(storageRef, blob);
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}
+
 export default function PlaydateScreen() {
   const { postId } = useLocalSearchParams();
   const postIdNum = Array.isArray(postId) ? Number(postId[0]) : Number(postId);
@@ -95,6 +116,8 @@ export default function PlaydateScreen() {
   const [filteredPosts, setFilteredPosts] = useState<typeof initialPosts>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const { width } = useWindowDimensions();
   const dynamicCardWidth =
@@ -112,6 +135,28 @@ export default function PlaydateScreen() {
       setErrors({ ...errors, [key]: false });
     }
   };
+
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showAlert('Permission needed', 'We need access to your photo library to upload a picture.');
+      return;
+    }
+  
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+  
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      setLocalImageUri(asset.uri);
+      // optional: clear the URL field if you want device photos to “win”
+      // setFormData((prev) => ({ ...prev, petImage: '' }));
+    }
+  };  
 
   // --- Form submission flow ---
   // Validates required fields locally, then POSTs to the backend via
@@ -153,7 +198,37 @@ export default function PlaydateScreen() {
     try {
       setLoading(true);
       console.log('About to create playdate in Firebase...');
-      
+
+      // decide final image URL
+      let finalImageUrl = '';
+
+  // if user picked a local image, upload it and use that URL instead
+  if (localImageUri) {
+    try {
+      setUploadingImage(true);
+      finalImageUrl = await uploadImageToStorage(localImageUri);
+    } catch (e) {
+      console.error('Image upload failed', e);
+      showAlert('Image upload failed', 'Your playdate will be posted without an image.');
+      finalImageUrl = ''; // or keep whatever was in petImage
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  if (localImageUri) {
+    try {
+      setUploadingImage(true);
+      finalImageUrl = await uploadImageToStorage(localImageUri);
+    } catch (e) {
+      console.error('Image upload failed', e);
+      showAlert('Image upload failed', 'Your playdate will be posted without an image.');
+      finalImageUrl = '';
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
       // USE FIREBASE INSTEAD OF SERVER
       await createPlaydateFirebase({
         authorId: 1,
@@ -167,7 +242,7 @@ export default function PlaydateScreen() {
         zip: formData.zip?.trim() || '98055',
         whenAt: whenAt,
         place: trimmedCity,
-        imageUrl: formData.petImage?.trim() || '',
+        imageUrl: finalImageUrl,
       });
       console.log('Playdate created! Refreshing feed...');
       setShowForm(false);
@@ -509,13 +584,23 @@ export default function PlaydateScreen() {
             }
           />
 
-          <Text style={styles.label}>Pet Image URL (optional):</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Image link"
-            value={formData.petImage}
-            onChangeText={(text) => handleInputChange('petImage', text)}
-          />
+          <Text style={styles.label}>Pet Photo (optional):</Text>
+
+          <TouchableOpacity
+            style={styles.uploadButton}
+            onPress={handlePickImage}
+          >
+            <Text style={styles.uploadButtonText}>
+              {localImageUri ? "Change Photo" : "Upload Photo"}
+            </Text>
+          </TouchableOpacity>
+
+          {localImageUri && (
+            <Image
+              source={{ uri: localImageUri }}
+              style={styles.previewImage}
+            />
+          )}
 
           <Text style={styles.label}>Description (optional):</Text>
           <TextInput
@@ -552,6 +637,28 @@ export default function PlaydateScreen() {
 }
 
 const styles = StyleSheet.create({
+  uploadButton: {
+    marginTop: 10,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F2F2F2',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  
+  uploadButtonText: {
+    fontWeight: '600',
+    color: '#333',
+  },
+  
+  previewImage: {
+    marginTop: 10,
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
   container: { flex: 1, backgroundColor: '#fff' },
   header: {
     fontSize: 22,

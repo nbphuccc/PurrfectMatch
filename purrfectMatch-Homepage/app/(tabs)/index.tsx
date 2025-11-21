@@ -2,11 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, KeyboardAvoidingView, Platform, } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { createCommunityPostFirebase, listCommunityPostsFirebase, toggleLikeFirebase, getLikeStatusFirebase } from '../../api/community';
 import CreateCommunityPost from '../CreateCommunityPost';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { app } from '../../config/firebase';
+
 
 const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
 const CATEGORIES = ['Resource', 'Care', 'Other'];
@@ -24,6 +27,20 @@ type Post = {
   likes: number;
   comments: number;
 };
+
+async function uploadImageToStorage(uri: string, folder: string = 'community'): Promise<string> {
+  const storage = getStorage(app); // or getStorage() if you initialize elsewhere
+
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  const filename = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const storageRef = ref(storage, filename);
+
+  await uploadBytes(storageRef, blob);
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}
 
 export default function CommunityScreen() {
   const [showForm, setShowForm] = useState(false);
@@ -145,26 +162,44 @@ export default function CommunityScreen() {
     }
   };
 
-  const handleCreateFromComponent = async (dto: { petType?: string | null; category?: string | null; description: string; image?: string | null }) => {
+  const handleCreateFromComponent = async (dto: {
+    petType?: string | null;
+    category?: string | null;
+    description: string;
+    image?: string | null;   // will be a local URI from device, or null/undefined
+  }) => {
     if (isSubmitting) return;
     const trimmedDesc = dto.description.trim();
-
+  
     if (!trimmedDesc) {
       showAlert('Missing Description', 'Please provide a description for your post.');
       return;
     }
-
+  
     if (!currentUser) {
       showAlert('Not Logged In', 'Please log in to create a post.');
       return;
     }
-
+  
     setIsSubmitting(true);
-
+  
     const petType = dto.petType || 'All Pets';
     const category = dto.category || 'Other';
-    const image = dto.image ? dto.image : undefined;
-
+  
+    let imageUrl: string | undefined = undefined;
+  
+    // If CreateCommunityPost passed up a local URI, upload it to Storage
+    if (dto.image) {
+      try {
+        console.log('Uploading community image to Firebase Storage...');
+        imageUrl = await uploadImageToStorage(dto.image, 'community');
+      } catch (e) {
+        console.error('Failed to upload community image', e);
+        showAlert('Image upload failed', 'Your post will be created without a photo.');
+        imageUrl = undefined;
+      }
+    }
+  
     try {
       console.log('Creating community post in Firebase...');
       
@@ -174,9 +209,9 @@ export default function CommunityScreen() {
         petType,
         category,
         description: trimmedDesc,
-        imageUrl: image,
+        imageUrl, // may be undefined if no image / upload failed
       });
-
+  
       console.log('Community post created! Refreshing feed...');
       await loadPosts();
       setShowForm(false);
@@ -187,7 +222,7 @@ export default function CommunityScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  };  
 
   const handleSearch = (petType: string) => {
     if (!petType.trim()) {
@@ -235,6 +270,12 @@ export default function CommunityScreen() {
   };
 
   return (
+    <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    // tweak this number depending on your header + tab bar height (80–140 is common)
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    >
     <View style={styles.container}>
       {!showForm && (
         <>
@@ -358,6 +399,7 @@ export default function CommunityScreen() {
         />
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }
 
