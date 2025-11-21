@@ -2,10 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import { api, abs } from '../../api/Client';
-import { createCommunityPost, listCommunity, createCommunityPostFirebase, listCommunityPostsFirebase } from '../../api/community';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, KeyboardAvoidingView, Platform, } from 'react-native';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../config/firebase';
+import { createCommunityPostFirebase, listCommunityPostsFirebase, toggleLikeFirebase, getLikeStatusFirebase } from '../../api/community';
 import CreateCommunityPost from '../CreateCommunityPost';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { app } from '../../config/firebase';
+
 
 const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
 const CATEGORIES = ['Resource', 'Care', 'Other'];
@@ -24,6 +28,20 @@ type Post = {
   comments: number;
 };
 
+async function uploadImageToStorage(uri: string, folder: string = 'community'): Promise<string> {
+  const storage = getStorage(app); // or getStorage() if you initialize elsewhere
+
+  const response = await fetch(uri);
+  const blob = await response.blob();
+
+  const filename = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const storageRef = ref(storage, filename);
+
+  await uploadBytes(storageRef, blob);
+  const downloadUrl = await getDownloadURL(storageRef);
+  return downloadUrl;
+}
+
 export default function CommunityScreen() {
   const [showForm, setShowForm] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -32,6 +50,7 @@ export default function CommunityScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchPetType, setSearchPetType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
   const { width } = useWindowDimensions();
 
   const formatRelativeTime = (iso: string) => {
@@ -70,47 +89,67 @@ export default function CommunityScreen() {
     return () => clearInterval(id);
   }, []);
 
-  // ⭐ Extract load function so we can reuse it
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser({
+          id: user.uid,
+          username: user.displayName || 'User',
+        });
+        console.log('User logged in:', user.email);
+      } else {
+        setCurrentUser(null);
+        console.log('No user logged in');
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
   const loadPosts = React.useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      console.log('🔥 Loading community posts from Firebase...');
+      console.log('Loading community posts from Firebase...');
       const firebasePosts = await listCommunityPostsFirebase();
       
-      const formattedPosts = firebasePosts.map((post, index) => ({
-        id: index + 1,
-        firebaseId: post.id,
-        user: post.username,
-        created_at: post.createdAt.toISOString(),
-        petType: post.petType,
-        category: post.category,
-        description: post.description,
-        image: post.imageUrl,
-        likes: post.likes,
-        comments: post.comments,
+      const formattedPosts = await Promise.all(firebasePosts.map(async (post, index) => {
+        // Check if current user liked this post
+        const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.id) : false;
+        
+        return {
+          id: index + 1,
+          firebaseId: post.id,
+          user: post.username,
+          created_at: post.createdAt.toISOString(),
+          petType: post.petType,
+          category: post.category,
+          description: post.description,
+          image: post.imageUrl,
+          likes: post.likes,
+          comments: post.comments,
+          liked,
+        };
       }));
       
-      console.log(`✅ Loaded ${formattedPosts.length} posts from Firebase`);
+      console.log(`Loaded ${formattedPosts.length} posts from Firebase`);
       setPosts(formattedPosts);
       setFilteredPosts(formattedPosts);
     } catch (err: any) {
-      console.error('❌ Failed to load community posts from Firebase', err);
+      console.error('Failed to load community posts from Firebase', err);
       setLoadError(err?.message || 'Failed to load community posts');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
-  // 🔥 Load on mount
   React.useEffect(() => {
     loadPosts();
   }, [loadPosts]);
 
-  // ⭐ Reload when screen comes back into focus (after viewing a post)
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 Screen focused, refreshing posts...');
+      console.log('Screen focused, refreshing posts...');
       loadPosts();
     }, [loadPosts])
   );
@@ -123,45 +162,67 @@ export default function CommunityScreen() {
     }
   };
 
-  // 🔥 Submit to Firebase
-  const handleCreateFromComponent = async (dto: { petType?: string | null; category?: string | null; description: string; image?: string | null }) => {
+  const handleCreateFromComponent = async (dto: {
+    petType?: string | null;
+    category?: string | null;
+    description: string;
+    image?: string | null;   // will be a local URI from device, or null/undefined
+  }) => {
     if (isSubmitting) return;
     const trimmedDesc = dto.description.trim();
-
+  
     if (!trimmedDesc) {
       showAlert('Missing Description', 'Please provide a description for your post.');
       return;
     }
-
+  
+    if (!currentUser) {
+      showAlert('Not Logged In', 'Please log in to create a post.');
+      return;
+    }
+  
     setIsSubmitting(true);
-
+  
     const petType = dto.petType || 'All Pets';
     const category = dto.category || 'Other';
-    const image = dto.image ? dto.image : undefined;
-
+  
+    let imageUrl: string | undefined = undefined;
+  
+    // If CreateCommunityPost passed up a local URI, upload it to Storage
+    if (dto.image) {
+      try {
+        console.log('Uploading community image to Firebase Storage...');
+        imageUrl = await uploadImageToStorage(dto.image, 'community');
+      } catch (e) {
+        console.error('Failed to upload community image', e);
+        showAlert('Image upload failed', 'Your post will be created without a photo.');
+        imageUrl = undefined;
+      }
+    }
+  
     try {
-      console.log('🔥 Creating community post in Firebase...');
+      console.log('Creating community post in Firebase...');
       
       await createCommunityPostFirebase({
-        authorId: 1,
-        username: 'Guest',
+        authorId: currentUser.id,
+        username: currentUser.username,
         petType,
         category,
         description: trimmedDesc,
-        imageUrl: image,
+        imageUrl, // may be undefined if no image / upload failed
       });
-
-      console.log('🎉 Community post created! Refreshing feed...');
-      await loadPosts(); // ⭐ Use the shared load function
+  
+      console.log('Community post created! Refreshing feed...');
+      await loadPosts();
       setShowForm(false);
-      showAlert('Success!', '🎉 Your community post has been posted to Firebase!');
+      showAlert('Success!', 'Your community post has been posted!');
     } catch (error) {
-      console.error('❌ Failed to create community post in Firebase:', error);
-      showAlert('Submission failed', 'Could not send post to Firebase. Please try again later.');
+      console.error('Failed to create community post in Firebase:', error);
+      showAlert('Submission failed', 'Could not send post. Please try again later.');
     } finally {
       setIsSubmitting(false);
     }
-  };
+  };  
 
   const handleSearch = (petType: string) => {
     if (!petType.trim()) {
@@ -177,24 +238,44 @@ export default function CommunityScreen() {
   const cardWidth = Math.max(300, Math.min(width - 32, 800));
   const router = useRouter();
 
-  const toggleLike = (postId: number) => {
-    setPosts(prev =>
-      prev.map(p =>
-        p.id === postId
-          ? { ...p, liked: !p.liked, likes: p.liked ? Math.max(0, p.likes - 1) : p.likes + 1 }
-          : p
-      )
-    );
-    setFilteredPosts(prev =>
-      prev.map(p =>
-        p.id === postId
-          ? { ...p, liked: !p.liked, likes: p.liked ? Math.max(0, p.likes - 1) : p.likes + 1 }
-          : p
-      )
-    );
+  const toggleLike = async (postId: number, firebaseId: string) => {
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Please log in to like posts.');
+      return;
+    }
+
+    try {
+      // Optimistic update
+      const updatePosts = (prev: Post[]) =>
+        prev.map(p =>
+          p.id === postId
+            ? { ...p, liked: !p.liked, likes: p.liked ? Math.max(0, p.likes - 1) : p.likes + 1 }
+            : p
+        );
+
+      setPosts(updatePosts);
+      setFilteredPosts(updatePosts);
+
+      // Update Firebase
+      await toggleLikeFirebase(firebaseId, currentUser.id);
+      
+      // Reload to sync with Firebase
+      await loadPosts();
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like. Please try again.');
+      // Revert optimistic update
+      await loadPosts();
+    }
   };
 
   return (
+    <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    // tweak this number depending on your header + tab bar height (80–140 is common)
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    >
     <View style={styles.container}>
       {!showForm && (
         <>
@@ -263,7 +344,10 @@ export default function CommunityScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
                     <TouchableOpacity
                       style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center' }}
-                      onPress={() => toggleLike(post.id)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleLike(post.id, post.firebaseId);
+                      }}
                     >
                       <Ionicons
                         name={post.liked ? 'heart' : 'heart-outline'}
@@ -315,6 +399,7 @@ export default function CommunityScreen() {
         />
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

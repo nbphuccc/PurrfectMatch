@@ -8,7 +8,7 @@ describe('<Profile />', () => {
     const { getByText } = render(<Profile />);
 
     getByText('Login');
-    getByText('Username or Email');
+    getByText('Email');
     getByText('Password');
     getByText('Forgot password?');
     getByText('LOGIN');

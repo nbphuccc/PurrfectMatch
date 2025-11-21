@@ -56,7 +56,7 @@ export async function listCommunity(params?: { q?: string; page?: number; limit?
 // ==================== FIREBASE FUNCTIONS ====================
 
 export interface CommunityPostFirebase {
-  authorId: number;
+  authorId: string;
   username: string;
   petType: string;
   category: string;
@@ -68,7 +68,7 @@ export interface CommunityPostFirebase {
 }
 
 export async function createCommunityPostFirebase(post: {
-  authorId: number;
+  authorId: string;
   username: string;
   petType: string;
   category: string;
@@ -143,7 +143,7 @@ export async function listCommunityPostsFirebase(params?: {
 
 export interface CommentFirebase {
   postId: string;
-  authorId: number;
+  authorId: string;
   username: string;
   content: string;
   createdAt: Date;
@@ -181,7 +181,7 @@ export async function getCommentsFirebase(postId: string): Promise<(CommentFireb
 
 export async function addCommentFirebase(comment: {
   postId: string;
-  authorId: number;
+  authorId: string;
   username: string;
   content: string;
 }) {
@@ -213,7 +213,7 @@ export async function addCommentFirebase(comment: {
 
 // ==================== LIKES (FIREBASE) ====================
 
-export async function toggleLikeFirebase(postId: string, userId: number) {
+export async function toggleLikeFirebase(postId: string, userId: string) {
   try {
     const postRef = doc(db, 'community_posts', postId);
     const likesRef = collection(db, 'community_likes');
@@ -254,7 +254,7 @@ export async function toggleLikeFirebase(postId: string, userId: number) {
   }
 }
 
-export async function getLikeStatusFirebase(postId: string, userId: number): Promise<boolean> {
+export async function getLikeStatusFirebase(postId: string, userId: string): Promise<boolean> {
   try {
     const likesRef = collection(db, 'community_likes');
     const likeQuery = query(
