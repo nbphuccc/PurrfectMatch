@@ -304,27 +304,27 @@ export default function CommunityScreen() {
 
           <ScrollView style={styles.feed} contentContainerStyle={{ alignItems: 'center' }}>
             {filteredPosts.map(post => (
-              <TouchableOpacity
-                key={post.id}
-                activeOpacity={0.8}
-                onPress={() => {
-                  router.push({
-                    pathname: '../communityPost',
-                    params: {
-                      id: post.firebaseId,
-                      user: post.user,
-                      time: post.created_at ?? '',
-                      petType: post.petType,
-                      category: post.category,
-                      description: post.description,
-                      image: post.image ? encodeURIComponent(post.image) : '',
-                      likes: post.likes,
-                      comments: post.comments
-                    },
-                  });
-                }}
-              >
-                <View style={[styles.card, { width: cardWidth }]}>
+              <View key={post.id} style={[styles.card, { width: cardWidth }]}>
+                {/* Tap ANYWHERE in this top area to open details */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    router.push({
+                      pathname: '../communityPost',
+                      params: {
+                        id: post.firebaseId,
+                        user: post.user,
+                        time: post.created_at ?? '',
+                        petType: post.petType,
+                        category: post.category,
+                        description: post.description,
+                        image: post.image ? encodeURIComponent(post.image) : '',
+                        likes: String(post.likes),
+                        comments: String(post.comments),
+                      },
+                    });
+                  }}
+                >
                   <View style={styles.cardHeader}>
                     <Image
                       source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
@@ -336,52 +336,55 @@ export default function CommunityScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.description} numberOfLines={3}>{post.description}</Text>
+                  <Text style={styles.description} numberOfLines={3}>
+                    {post.description}
+                  </Text>
+
                   {post.image ? (
                     <Image source={{ uri: post.image }} style={styles.cardImage} />
                   ) : null}
+                </TouchableOpacity>
 
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                    <TouchableOpacity
-                      style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center' }}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        toggleLike(post.id, post.firebaseId);
-                      }}
-                    >
-                      <Ionicons
-                        name={post.liked ? 'heart' : 'heart-outline'}
-                        size={20}
-                        color={post.liked ? '#e0245e' : '#000'}
-                      />
-                      <Text style={{ marginLeft: 8 }}>{post.likes}</Text>
-                    </TouchableOpacity>
+                {/* Bottom row: like + comment buttons (no navigation on like tap) */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                  <TouchableOpacity
+                    style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center' }}
+                    onPress={() => {
+                      toggleLike(post.id, post.firebaseId);
+                    }}
+                  >
+                    <Ionicons
+                      name={post.liked ? 'heart' : 'heart-outline'}
+                      size={20}
+                      color={post.liked ? '#e0245e' : '#000'}
+                    />
+                    <Text style={{ marginLeft: 8 }}>{post.likes}</Text>
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center' }}
-                      onPress={() => {
-                        router.push({
-                          pathname: '../communityPost',
-                          params: {
-                            id: post.firebaseId,
-                            user: post.user,
-                            time: post.created_at ?? '',
-                            petType: post.petType,
-                            category: post.category,
-                            description: post.description,
-                            image: post.image,
-                            likes: post.likes,
-                            comments: post.comments
-                          },
-                        });
-                      }}
-                    >
-                      <Ionicons name="chatbubble-outline" size={20} />
-                      <Text style={{ marginLeft: 8 }}>{post.comments}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    style={{ marginRight: 16, flexDirection: 'row', alignItems: 'center' }}
+                    onPress={() => {
+                      router.push({
+                        pathname: '../communityPost',
+                        params: {
+                          id: post.firebaseId,
+                          user: post.user,
+                          time: post.created_at ?? '',
+                          petType: post.petType,
+                          category: post.category,
+                          description: post.description,
+                          image: post.image ? encodeURIComponent(post.image) : '',
+                          likes: String(post.likes),
+                          comments: String(post.comments),
+                        },
+                      });
+                    }}
+                  >
+                    <Ionicons name="chatbubble-outline" size={20} />
+                    <Text style={{ marginLeft: 8 }}>{post.comments}</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             ))}
           </ScrollView>
 
