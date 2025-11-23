@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image } from 'react-native';
 import { loginFirebase, logoutFirebase } from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
+import { listCommunityPostsFirebase, CommunityPostFirebase } from '../../api/community';
+import { listPlaydatesFirebase, PlaydatePostFirebase } from '../../api/playdates';
 
 export default function Profile() {
   const [email, setEmail] = useState('');
@@ -12,6 +14,9 @@ export default function Profile() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string; email: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [userPosts, setUserPosts] = useState<(CommunityPostFirebase & { id: string; type: 'community' })[]>([]);
+  const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   
   const router = useRouter();
 
@@ -25,15 +30,42 @@ export default function Profile() {
         });
         setIsLoggedIn(true);
         console.log('User logged in:', user.email);
+        // Load user's posts when logged in
+        loadUserPosts(user.uid);
       } else {
         setCurrentUser(null);
         setIsLoggedIn(false);
+        setUserPosts([]);
+        setUserPlaydates([]);
         console.log('User logged out');
       }
     });
 
     return unsubscribe;
   }, []);
+
+  const loadUserPosts = async (userId: string) => {
+    setLoadingPosts(true);
+    try {
+      // Fetch community posts
+      const allCommunityPosts = await listCommunityPostsFirebase();
+      const userCommunityPosts = allCommunityPosts
+        .filter(post => post.authorId === userId)
+        .map(post => ({ ...post, type: 'community' as const }));
+      
+      // Fetch playdates
+      const allPlaydates = await listPlaydatesFirebase();
+      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
+      
+      setUserPosts(userCommunityPosts);
+      setUserPlaydates(userPlaydatePosts);
+      console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
+    } catch (error) {
+      console.error('Error loading user posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
 
   const handleLogIn = async () => {
     setErrorMessage(null);
@@ -159,21 +191,119 @@ export default function Profile() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.login}>
-        <Text style={styles.title}>Welcome, {currentUser?.username}!</Text>
-        <Text style={{ textAlign: 'center', color: '#555', marginBottom: 8 }}>
-          {currentUser?.email}
-        </Text>
-        <Text style={{ textAlign: 'center', color: '#555', marginBottom: 20 }}>
-          You are now logged in.
-        </Text>
+    <ScrollView style={styles.container}>
+      <View style={styles.profileHeader}>
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+            style={styles.profilePic}
+          />
+        </View>
+        <Text style={styles.username}>{currentUser?.username}</Text>
+        <Text style={styles.email}>{currentUser?.email}</Text>
+        
+        {/* show number of posts (playdate, community) */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{userPosts.length}</Text>
+            <Text style={styles.statLabel}>Posts</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{userPlaydates.length}</Text>
+            <Text style={styles.statLabel}>Playdates</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{userPosts.length + userPlaydates.length}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+        </View>
 
-        <TouchableOpacity style={styles.login_button} onPress={handleLogout}>
-          <Text style={{ color: '#fff', fontWeight: '600' }}>LOGOUT</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>LOGOUT</Text>
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* User's Posts Section */}
+      <View style={styles.postsSection}>
+        <Text style={styles.sectionTitle}>My Posts</Text>
+        
+        {loadingPosts ? (
+          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
+        ) : (
+          <>
+            {userPosts.length === 0 && userPlaydates.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No posts yet</Text>
+                <Text style={styles.emptyStateSubtext}>Start sharing with the community!</Text>
+              </View>
+            ) : (
+              <>
+                {/* Community Posts */}
+                {userPosts.length > 0 && (
+                  <View style={styles.postTypeSection}>
+                    <Text style={styles.postTypeTitle}>Community Posts ({userPosts.length})</Text>
+                    {userPosts.map((post) => (
+                      <View key={post.id} style={styles.postCard}>
+                        <View style={styles.postHeader}>
+                          <View style={styles.postBadge}>
+                            <Text style={styles.postBadgeText}>{post.category}</Text>
+                          </View>
+                          <View style={styles.postBadge}>
+                            <Text style={styles.postBadgeText}>{post.petType}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.postDescription}>{post.description}</Text>
+                        {post.imageUrl && (
+                          <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+                        )}
+                        <View style={styles.postFooter}>
+                          <Text style={styles.postStats}>{post.likes} likes</Text>
+                          <Text style={styles.postStats}>{post.comments} comments</Text>
+                          <Text style={styles.postDate}>
+                            {post.createdAt.toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Playdates */}
+                {userPlaydates.length > 0 && (
+                  <View style={styles.postTypeSection}>
+                    <Text style={styles.postTypeTitle}>Playdates ({userPlaydates.length})</Text>
+                    {userPlaydates.map((playdate) => (
+                      <View key={playdate.id} style={styles.postCard}>
+                        <Text style={styles.playdateTitle}>{playdate.title}</Text>
+                        <View style={styles.playdateInfo}>
+                          <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
+                          <Text style={styles.playdateLabel}>{playdate.city}, {playdate.state}</Text>
+                        </View>
+                        <Text style={styles.postDescription}>{playdate.description}</Text>
+                        <View style={styles.playdateDetails}>
+                          <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
+                          <Text style={styles.playdateDetailText}>{playdate.place}</Text>
+                        </View>
+                        {playdate.imageUrl && (
+                          <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
+                        )}
+                        <View style={styles.postFooter}>
+                          <Text style={styles.postDate}>
+                            {playdate.createdAt.toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -183,15 +313,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f2f4f7',
-    padding: 16,
-    justifyContent: 'center', 
   },
   login: {
     backgroundColor: '#fff',
     padding: 30,
     shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowRadius:10
+    shadowRadius:10,
+    margin: 16,
+    marginTop: 100,
   },
   title: {
     fontSize: 24,
@@ -247,5 +377,187 @@ const styles = StyleSheet.create({
   signup_text: {
     color: '#6d6d6dff', 
     textDecorationLine: 'underline'
-  }
+  },
+  // Profile page styles
+  profileHeader: {
+    backgroundColor: '#fff',
+    padding: 24,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  avatarContainer: {
+    marginBottom: 16,
+  },
+  profilePic: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#007AFF',
+  },
+  username: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  email: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#ddd',
+  },
+  logoutButton: {
+    backgroundColor: '#ff3b30',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  postsSection: {
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+  },
+  postTypeSection: {
+    marginBottom: 24,
+  },
+  postTypeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#555',
+    marginBottom: 12,
+  },
+  postCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  postHeader: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  postBadge: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  postBadgeText: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  postDescription: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  postFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  postStats: {
+    fontSize: 12,
+    color: '#666',
+  },
+  postDate: {
+    fontSize: 11,
+    color: '#999',
+  },
+  playdateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+  },
+  playdateInfo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 12,
+  },
+  playdateLabel: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  playdateDetails: {
+    backgroundColor: '#f8f8f8',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  playdateDetailText: {
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 4,
+  },
 });

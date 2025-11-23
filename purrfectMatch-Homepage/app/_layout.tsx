@@ -20,6 +20,7 @@ export default function RootLayout() {
         <Stack.Screen name="forgotPassword" options={{ title: 'Reset Password', headerBackTitle: 'Back'}} />
         <Stack.Screen name="signup" options={{ title: 'Sign up', headerBackTitle: 'Back' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen name="communityPost" options={{ title: 'Post', headerBackTitle: 'Back' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
