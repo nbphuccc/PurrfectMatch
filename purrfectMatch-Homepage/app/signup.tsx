@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native'
 import { signupFirebase } from "../api/firebaseAuth";
 
-export default function signUp() {
+export default function SignUp() {
   const router = useRouter()
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');

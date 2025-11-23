@@ -38,7 +38,7 @@ export async function getComments(postId: number) {
 
 export async function createCommunityPost(dto: CommunityCreateDTO) {
   const serverDto = {
-    author_id: 1,
+    author_id: 1, //HERE
     title: `${dto.category ?? 'Other'} - ${dto.petType ?? 'All Pets'}`,
     description: dto.description,
     image_url: dto.image ?? null,
