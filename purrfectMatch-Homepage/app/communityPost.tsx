@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { getCommentsFirebase, addCommentFirebase } from '../api/community';
@@ -127,67 +127,73 @@ export default function PostDetail() {
   };
 
   return (
-    <View style={styles.outer_container}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.user}>{user ?? 'Unknown'}</Text>
-        <Text style={styles.time}>{displayedTime}</Text>
-        <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
-        <Text style={styles.description}>{description ?? ''}</Text>
-        {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
-        
-        <View style={{ marginTop: 30 }}>
-          <View style={styles.commentInputRow}>
-            <Image
-              source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
-              style={styles.avatar}
-            />
+    <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0} // tweak if header height differs
+    >
+      <View style={styles.outer_container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]}>
+          <Text style={styles.user}>{user ?? 'Unknown'}</Text>
+          <Text style={styles.time}>{displayedTime}</Text>
+          <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
+          <Text style={styles.description}>{description ?? ''}</Text>
+          {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+          
+          <View style={{ marginTop: 30 }}>
+            <View style={styles.commentInputRow}>
+              <Image
+                source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                style={styles.avatar}
+              />
 
-            <TextInput
-              style={styles.input}
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Write a comment..."
-              placeholderTextColor="#888"
-              multiline
-              editable={!submitting}
-            />
+              <TextInput
+                style={styles.input}
+                value={comment}
+                onChangeText={setComment}
+                placeholder="Write a comment..."
+                placeholderTextColor="#888"
+                multiline
+                editable={!submitting}
+              />
 
-            <TouchableOpacity
-              onPress={handlePostComment}
-              style={[styles.postButton, (!comment.trim() || submitting) && { opacity: 0.45 }]}
-              disabled={!comment.trim() || submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
+              <TouchableOpacity
+                onPress={handlePostComment}
+                style={[styles.postButton, (!comment.trim() || submitting) && { opacity: 0.45 }]}
+                disabled={!comment.trim() || submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.postButtonText}>Post</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ marginTop: 12 }}>
+              {loading ? (
+                <Text style={{ color: '#888', textAlign: 'center' }}>Loading comments...</Text>
+              ) : commentsList.length === 0 ? (
+                <Text style={{ color: '#888' }}>No comments yet - be the first to comment.</Text>
               ) : (
-                <Text style={styles.postButtonText}>Post</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ marginTop: 12 }}>
-            {loading ? (
-              <Text style={{ color: '#888', textAlign: 'center' }}>Loading comments...</Text>
-            ) : commentsList.length === 0 ? (
-              <Text style={{ color: '#888' }}>No comments yet - be the first to comment.</Text>
-            ) : (
-              commentsList.map(c => (
-                <View key={c.id} style={styles.commentRow}>
-                  <Image source={{ uri: c.avatar }} style={styles.commentAvatar} />
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={{ fontWeight: '700', marginRight: 8 }}>{c.user}</Text>
-                      <Text style={{ color: '#666', fontSize: 12 }}>{formatTimeValue(c.created_at)}</Text>
+                commentsList.map(c => (
+                  <View key={c.id} style={styles.commentRow}>
+                    <Image source={{ uri: c.avatar }} style={styles.commentAvatar} />
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontWeight: '700', marginRight: 8 }}>{c.user}</Text>
+                        <Text style={{ color: '#666', fontSize: 12 }}>{formatTimeValue(c.created_at)}</Text>
+                      </View>
+                      <Text style={{ marginTop: 4 }}>{c.text}</Text>
                     </View>
-                    <Text style={{ marginTop: 4 }}>{c.text}</Text>
                   </View>
-                </View>
-              ))
-            )}
+                ))
+              )}
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+      </KeyboardAvoidingView>
   );
 }
 
