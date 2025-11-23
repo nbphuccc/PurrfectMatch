@@ -317,7 +317,7 @@ export default function CommunityScreen() {
                       petType: post.petType,
                       category: post.category,
                       description: post.description,
-                      image: post.image,
+                      image: post.image ? encodeURIComponent(post.image) : '',
                       likes: post.likes,
                       comments: post.comments
                     },
