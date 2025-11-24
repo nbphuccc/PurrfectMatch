@@ -295,6 +295,8 @@ export default function CommunityScreen() {
                 style={styles.searchInput}
                 value={searchPetType}
                 onChangeText={text => setSearchPetType(text)}
+                returnKeyType="search"
+                onSubmitEditing={({ nativeEvent }) => handleSearch(nativeEvent.text)}
               />
               <TouchableOpacity onPress={() => handleSearch(searchPetType)} style={styles.searchIcon}>
                 <Ionicons name="search" size={20} color="#888" />
