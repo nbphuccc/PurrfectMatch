@@ -1,11 +1,14 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image } from 'react-native';
-import { loginFirebase, logoutFirebase } from '../../api/firebaseAuth';
+import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase} from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { listCommunityPostsFirebase, CommunityPostFirebase } from '../../api/community';
 import { listPlaydatesFirebase, PlaydatePostFirebase } from '../../api/playdates';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import * as ImagePicker from 'expo-image-picker';
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function Profile() {
   const [email, setEmail] = useState('');
@@ -17,11 +20,12 @@ export default function Profile() {
   const [userPosts, setUserPosts] = useState<(CommunityPostFirebase & { id: string; type: 'community' })[]>([]);
   const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [profile, setProfile] = useState<ProfileFirebase | null>(null);
   
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser({
           id: user.uid,
@@ -32,17 +36,82 @@ export default function Profile() {
         console.log('User logged in:', user.email);
         // Load user's posts when logged in
         loadUserPosts(user.uid);
+        const currProfile = await getUserProfileFirebase(user.uid);
+
+        if (!currProfile) {
+          // Create missing profile
+          const result = await setUserProfileFirebase(user.uid, {
+            email: user.email!,
+            username: user.displayName || "User",
+            name: "",
+            bio: "",
+            avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+            publicEmail: false,
+          });
+
+          if (!result.success) {
+            console.error("Failed to create user profile. Account exists without profile?");
+          }
+        }
+        // Fetch the newly created profile
+        const finalProfile = await getUserProfileFirebase(user.uid);
+        setProfile(finalProfile);
       } else {
         setCurrentUser(null);
         setIsLoggedIn(false);
         setUserPosts([]);
         setUserPlaydates([]);
+        setProfile(null);
         console.log('User logged out');
       }
     });
-
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
+
+  
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Permission needed to access photos');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1.0,
+    });
+
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      const localUri = asset.uri;
+
+      // 1️⃣ Convert to blob for upload
+      const response = await fetch(localUri);
+      const blob = await response.blob();
+
+      // 2️⃣ Upload to Firebase Storage
+      const storage = getStorage();
+      const storageRef = ref(storage, `avatars/${currentUser?.id}.jpg`);
+      await uploadBytes(storageRef, blob);
+
+      // 3️⃣ Get download URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // 4️⃣ Update Firestore profile
+      await setUserProfileFirebase(currentUser!.id, {
+        ...profile!,
+        avatar: downloadURL,
+      });
+
+      // ✅ Update local state to rerender immediately
+      setProfile({
+        ...profile!,
+        avatar: downloadURL,
+      });
+    }
+  };
 
   const loadUserPosts = async (userId: string) => {
     setLoadingPosts(true);
@@ -194,11 +263,17 @@ export default function Profile() {
     <ScrollView style={styles.container}>
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
-          <Image
-            source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
-            style={styles.profilePic}
-          />
+          <TouchableOpacity onPress={handlePickImage}>
+            <Image
+              source={{ uri: profile?.avatar }}
+              style={styles.profilePic}
+            />
+            <View style={styles.cameraOverlay}>
+              <MaterialIcons name="camera" size={20} color="#fff" />
+            </View>
+          </TouchableOpacity>
         </View>
+
         <Text style={styles.username}>{currentUser?.username}</Text>
         <Text style={styles.email}>{currentUser?.email}</Text>
         
@@ -224,6 +299,25 @@ export default function Profile() {
           <Text style={styles.logoutButtonText}>LOGOUT</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Name */}
+      {profile?.name !== undefined && profile?.name !== null ? (
+        <Text style={styles.name}>
+          {profile.name !== "" ? profile.name : "Name not set"}
+        </Text>
+      ) : null}
+
+      {/* Email - only show if publicEmail */}
+      {profile?.publicEmail ? (
+        <Text style={styles.email}>{currentUser?.email}</Text>
+      ) : (
+        <Text style={styles.emailPrivate}>Email is private</Text>
+      )}
+
+      {/* Bio */}
+      <Text style={styles.bio}>
+        {profile?.bio && profile.bio !== "" ? profile.bio : "Bio not set"}
+      </Text>
 
       {/* User's Posts Section */}
       <View style={styles.postsSection}>
@@ -560,4 +654,34 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 4,
   },
+  name: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  bio: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 6,
+    marginHorizontal: 20,
+  },
+  emailPrivate: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#007AFF',
+    padding: 6,
+    borderRadius: 20,
+  },
+
 });

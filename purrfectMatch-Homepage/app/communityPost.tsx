@@ -3,7 +3,7 @@ import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity,
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { getCommentsFirebase, addCommentFirebase } from '../api/community';
-import { getCurrentUser } from '../api/firebaseAuth';
+import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
   const t = Date.parse(iso);
@@ -61,13 +61,19 @@ export default function PostDetail() {
         const firebaseComments = await getCommentsFirebase(id);
         if (!mounted) return;
         
-        const formatted = firebaseComments.map((c, idx) => ({
-          id: idx + 1,
-          user: c.username,
-          avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-          text: c.content,
-          created_at: c.createdAt.toISOString(),
-        }));
+        const formatted = await Promise.all(
+          firebaseComments.map(async (c, idx) => {
+            const profile = await getUserProfileFirebase(c.authorId);
+
+            return {
+              id: idx + 1,
+              user: c.username,
+              avatar: profile?.avatar,
+              text: c.content,
+              created_at: c.createdAt.toISOString(),
+            };
+          })
+        );
         
         console.log(`Loaded ${formatted.length} comments from Firebase`);
         setCommentsList(formatted);
@@ -108,13 +114,19 @@ export default function PostDetail() {
       console.log('Comment added! Reloading comments...');
       
       const firebaseComments = await getCommentsFirebase(id);
-      const formatted = firebaseComments.map((c, idx) => ({
-        id: idx + 1,
-        user: c.username,
-        avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-        text: c.content,
-        created_at: c.createdAt.toISOString(),
-      }));
+      const formatted = await Promise.all(
+          firebaseComments.map(async (c, idx) => {
+            const profile = await getUserProfileFirebase(c.authorId);
+
+            return {
+              id: idx + 1,
+              user: c.username,
+              avatar: profile?.avatar,
+              text: c.content,
+              created_at: c.createdAt.toISOString(),
+            };
+          })
+        );
       
       setCommentsList(formatted);
       setComment('');
