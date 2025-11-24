@@ -1,16 +1,18 @@
 import { api } from "./Client";
-import { db } from '../config/firebase';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
+import { db } from "../config/firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
   where,
-  orderBy, 
+  orderBy,
   Timestamp,
   deleteDoc,
-  doc
-} from 'firebase/firestore';
+  doc,
+  updateDoc,
+  increment,
+} from "firebase/firestore";
 
 export type PlaydateCreateDTO = {
   author_id: number;
@@ -26,16 +28,17 @@ export type PlaydateCreateDTO = {
   image_url?: string | null;
 };
 
-// Add a comment to a playdate post
+
 export async function addComment(postId: number, content: string) {
   const { data } = await api.post("/comments", { postId, content });
   return data;
 }
 
-// Fetch comments for a specific playdate post
 export async function getComments(postId: number) {
   const { data } = await api.get("/comments", { params: { postId } });
-  return data as { items: { id: number; author_id: number; content: string; created_at: string }[] };
+  return data as {
+    items: { id: number; author_id: number; content: string; created_at: string }[];
+  };
 }
 
 export async function createPlaydatePost(dto: PlaydateCreateDTO) {
@@ -43,13 +46,17 @@ export async function createPlaydatePost(dto: PlaydateCreateDTO) {
   return data;
 }
 
-// Fetch a list of playdate posts with optional filters
-export async function listPlaydates(params?: { city?: string; q?: string; page?: number; limit?: number }) {
+export async function listPlaydates(params?: {
+  city?: string;
+  q?: string;
+  page?: number;
+  limit?: number;
+}) {
   const { data } = await api.get("/playdates", { params });
   return data as { items: any[]; page: number; limit: number };
 }
 
-// ==================== FIREBASE FUNCTIONS (NEW) ====================
+// ==================== FIREBASE PLAYDATES ====================
 
 export interface PlaydatePostFirebase {
   id: string;
@@ -66,73 +73,161 @@ export interface PlaydatePostFirebase {
   place: string;
   imageUrl?: string;
   createdAt: Date;
+  likes?: number;
+  comments?: number;
 }
 
-const COLLECTION = 'playdate_posts';
+const COLLECTION = "playdate_posts";
 
-// Create playdate in Firebase
-export async function createPlaydateFirebase(playdate: Omit<PlaydatePostFirebase, 'id' | 'createdAt'>) {
+export async function createPlaydateFirebase(
+  playdate: Omit<PlaydatePostFirebase, "id" | "createdAt">
+) {
   try {
     const docRef = await addDoc(collection(db, COLLECTION), {
       ...playdate,
       createdAt: Timestamp.now(),
+      likes: 0,
+      comments: 0,
     });
-    console.log('Playdate created in Firebase with ID:', docRef.id);
+    console.log("Playdate created in Firebase with ID:", docRef.id);
     return { id: docRef.id, success: true };
   } catch (error) {
-    console.error('Error creating playdate in Firebase:', error);
+    console.error("Error creating playdate in Firebase:", error);
     throw error;
   }
 }
 
-// Get all playdates from Firebase
 export async function listPlaydatesFirebase(): Promise<PlaydatePostFirebase[]> {
   try {
-    const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
-    const playdates = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt.toDate(),
-    })) as PlaydatePostFirebase[];
+    const playdates = snapshot.docs.map((d) => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() ?? new Date(),
+        likes: data.likes ?? 0,
+        comments: data.comments ?? 0,
+      } as PlaydatePostFirebase;
+    });
     console.log(`Fetched ${playdates.length} playdates from Firebase`);
     return playdates;
   } catch (error) {
-    console.error('Error fetching playdates from Firebase:', error);
+    console.error("Error fetching playdates from Firebase:", error);
     return [];
   }
 }
 
-// Get playdates by city from Firebase
-export async function listPlaydatesByCityFirebase(city: string): Promise<PlaydatePostFirebase[]> {
+export async function listPlaydatesByCityFirebase(
+  city: string
+): Promise<PlaydatePostFirebase[]> {
   try {
     const q = query(
       collection(db, COLLECTION),
-      where('city', '==', city),
-      orderBy('createdAt', 'desc')
+      where("city", "==", city),
+      orderBy("createdAt", "desc")
     );
     const snapshot = await getDocs(q);
-    const playdates = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt.toDate(),
-    })) as PlaydatePostFirebase[];
+    const playdates = snapshot.docs.map((d) => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() ?? new Date(),
+        likes: data.likes ?? 0,
+        comments: data.comments ?? 0,
+      } as PlaydatePostFirebase;
+    });
     console.log(`Fetched ${playdates.length} playdates for city: ${city}`);
     return playdates;
   } catch (error) {
-    console.error('Error fetching playdates by city from Firebase:', error);
+    console.error("Error fetching playdates by city from Firebase:", error);
     return [];
   }
 }
 
-// Delete playdate from Firebase
 export async function deletePlaydateFirebase(id: string) {
   try {
     await deleteDoc(doc(db, COLLECTION, id));
-    console.log('Playdate deleted from Firebase:', id);
+    console.log("Playdate deleted from Firebase:", id);
     return { success: true };
   } catch (error) {
-    console.error('Error deleting playdate from Firebase:', error);
+    console.error("Error deleting playdate from Firebase:", error);
     throw error;
+  }
+}
+
+// ==================== FIREBASE COMMENTS (NO INDEX NEEDED) ====================
+
+export interface PlaydateCommentFirebase {
+  postId: string;
+  authorId: string;
+  username: string;
+  content: string;
+  createdAt: Date;
+}
+
+export async function addPlaydateCommentFirebase(comment: {
+  postId: string;
+  authorId: string;
+  username: string;
+  content: string;
+}) {
+  try {
+    const commentsRef = collection(db, "playdate_comments");
+
+    // Add comment document
+    await addDoc(commentsRef, {
+      postId: comment.postId,
+      authorId: comment.authorId,
+      username: comment.username,
+      content: comment.content,
+      createdAt: Timestamp.now(),
+    });
+
+    // Increment comment count on the playdate post
+    const postRef = doc(db, COLLECTION, comment.postId);
+    await updateDoc(postRef, {
+      comments: increment(1),
+    });
+
+    console.log("Playdate comment added");
+    return { success: true };
+  } catch (error) {
+    console.error("Error adding playdate comment:", error);
+    throw error;
+  }
+}
+
+export async function getPlaydateCommentsFirebase(
+  postId: string
+): Promise<(PlaydateCommentFirebase & { id: string })[]> {
+  try {
+    const commentsRef = collection(db, "playdate_comments");
+
+    // No orderBy → no composite index required
+    const q = query(commentsRef, where("postId", "==", postId));
+    const snapshot = await getDocs(q);
+
+    const comments = snapshot.docs.map((d) => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        postId: data.postId,
+        authorId: data.authorId,
+        username: data.username,
+        content: data.content,
+        createdAt: data.createdAt?.toDate() ?? new Date(),
+      } as PlaydateCommentFirebase & { id: string };
+    });
+
+    // Sort newest first on the client
+    comments.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return comments;
+  } catch (error) {
+    console.error("Error fetching playdate comments:", error);
+    return [];
   }
 }
