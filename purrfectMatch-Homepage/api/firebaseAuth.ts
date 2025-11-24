@@ -5,7 +5,8 @@ import {
   updateProfile,
   User
 } from 'firebase/auth';
-import { auth, db } from '../config/firebase';
+import { auth, db, db } from '../config/firebase';
+import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
 import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
 
 interface SignupData {
@@ -210,8 +211,13 @@ export async function setUserProfileFirebase(userId: string, profile: {
 
 export async function getUserProfileFirebase(userId: string) {
   try {
-    const ref = doc(db, "profile", userId);
-    const snap = await getDoc(ref);
+    // Add validation to ensure userId is a valid string
+    if (!userId || typeof userId !== 'string') {
+      console.warn('Invalid userId passed to getUserProfileFirebase:', userId);
+      return null;
+    }
+    const docRef = doc(db, "profile", userId);
+    const snap = await getDoc(docRef);
 
     if (!snap.exists()) return null;
 
