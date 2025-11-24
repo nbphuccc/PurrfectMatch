@@ -9,7 +9,7 @@ import { createCommunityPostFirebase, listCommunityPostsFirebase, toggleLikeFire
 import CreateCommunityPost from '../CreateCommunityPost';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { app } from '../../config/firebase';
-
+import { getCurrentUser, getUserProfileFirebase } from '../../api/firebaseAuth';
 
 const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
 const CATEGORIES = ['Resource', 'Care', 'Other'];
@@ -18,6 +18,7 @@ type Post = {
   id: number;
   firebaseId: string;
   user: string;
+  avatar: string;
   created_at?: string;
   petType: string;
   category: string;
@@ -116,11 +117,14 @@ export default function CommunityScreen() {
       const formattedPosts = await Promise.all(firebasePosts.map(async (post, index) => {
         // Check if current user liked this post
         const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.id) : false;
+        // Fetch author profile to get avatar
+        const profile = await getUserProfileFirebase(post.authorId);
         
         return {
           id: index + 1,
           firebaseId: post.id,
           user: post.username,
+          avatar: profile?.avatar,
           created_at: post.createdAt.toISOString(),
           petType: post.petType,
           category: post.category,
@@ -316,6 +320,7 @@ export default function CommunityScreen() {
                       params: {
                         id: post.firebaseId,
                         user: post.user,
+                        avatar: post.avatar,
                         time: post.created_at ?? '',
                         petType: post.petType,
                         category: post.category,
@@ -329,7 +334,7 @@ export default function CommunityScreen() {
                 >
                   <View style={styles.cardHeader}>
                     <Image
-                      source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                      source={{ uri: post.avatar }}
                       style={styles.profilePic}
                     />
                     <View>

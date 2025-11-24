@@ -5,7 +5,8 @@ import {
   updateProfile,
   User
 } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
 
 interface SignupData {
   email: string;
@@ -62,6 +63,15 @@ export async function signupFirebase({ email, username, password }: SignupData):
     
     await updateProfile(userCredential.user, {
       displayName: trimmedUsername,
+    });
+
+    await setUserProfileFirebase(userCredential.user.uid, {
+      email: userCredential.user.email!,
+      username: trimmedUsername,
+      name: "",
+      bio: "",
+      avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+      publicEmail: false,
     });
 
     console.log('Firebase signup successful:', userCredential.user.email);
@@ -161,4 +171,65 @@ export async function logoutFirebase() {
 
 export function getCurrentUser(): User | null {
   return auth.currentUser;
+}
+
+export interface ProfileFirebase {
+    id: string;
+    email: string;
+    username: string;
+    name: string;
+    bio: string;
+    avatar: string;
+    publicEmail: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+export async function setUserProfileFirebase(userId: string, profile: {
+  email: string;
+  username: string;
+  name: string;
+  bio: string;
+  avatar: string;
+  publicEmail: boolean;
+}) {
+  try {
+    await setDoc(doc(db, "profile", userId), {
+      ...profile,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    console.log("User profile saved to Firebase");
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving user profile:", error);
+    throw error;
+  }
+}
+
+export async function getUserProfileFirebase(userId: string) {
+  try {
+    const ref = doc(db, "profile", userId);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) return null;
+
+    const data = snap.data();
+
+    return {
+      id: snap.id,
+      email: data.email,
+      username: data.username,
+      name: data.name,
+      bio: data.bio,
+      avatar: data.avatar,
+      publicEmail: data.publicEmail,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+    };
+  } catch (error) {
+    console.error("Error loading user profile:", error);
+    return null;
+  }
 }
