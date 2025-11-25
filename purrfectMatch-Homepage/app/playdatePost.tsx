@@ -38,6 +38,7 @@ export default function PlaydatePost() {
     Array.isArray(value) ? value[0] : typeof value === "string" ? value : undefined;
 
   const postId = getParamString(params.id) || "";
+  const authorId = getParamString(params.authorId) || "";
   const title = getParamString(params.title) || "Playdate";
   const location = getParamString(params.location) || "Location: TBD";
   const date = getParamString(params.date) || "Date: TBD";
@@ -53,7 +54,6 @@ export default function PlaydatePost() {
 
   const rawImage = getParamString(params.image);
   const image = rawImage || undefined;
-  const image = rawImage || undefined;
 
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
@@ -61,7 +61,30 @@ export default function PlaydatePost() {
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loadingMap, setLoadingMap] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      try {
+        const authorProfile = await getUserProfileFirebase(authorId);
+        setPostAvatarUrl(authorProfile?.avatar || null);
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+          return;
+        }
+        const profile = await getUserProfileFirebase(currentUser.uid);
+        setAvatarUrl(profile?.avatar || null);
+      } catch (err) {
+        console.error("Failed to fetch avatar:", err);
+        setPostAvatarUrl(null);
+      }
+    };
+
+    if (authorId) {
+      fetchAvatar();
+    }
+  });
 
   const openInMaps = async () => {
     if (!coords) return;
@@ -88,10 +111,17 @@ export default function PlaydatePost() {
     if (!postId) return;
     setLoadingComments(true);
     const data = await getPlaydateCommentsFirebase(postId);
-    setComments(data);
+    const commentsWithAvatars = await Promise.all(
+      data.map(async (comment) => {
+        const profile = await getUserProfileFirebase(comment.authorId);
+        return {
+          ...comment,
+          avatar: profile?.avatar || "", // add avatar field
+        };
+      })
+    );
+    setComments(commentsWithAvatars);
     setLoadingComments(false);
-    //const profile = await getUserProfileFirebase(authorId);
-    //setAvatarUrl(profile?.avatar || null);
   };
 
   useEffect(() => {
@@ -158,7 +188,7 @@ export default function PlaydatePost() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Image
-              source={{ uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg" }}
+              source={{ uri: postAvatarUrl || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
               style={styles.profilePic}
             />
             <View>
@@ -209,7 +239,7 @@ export default function PlaydatePost() {
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
         <View style={styles.commentRow}>
           <Image
-            source={{ uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg" }}
+            source={{ uri: avatarUrl || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
             style={styles.commentProfile}
           />
 
@@ -237,7 +267,7 @@ export default function PlaydatePost() {
             comments.map((c) => (
               <View key={c.id} style={styles.commentItem}>
                 <Image
-                  source={{ uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg" }}
+                  source={{ uri: c.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
                   style={styles.commentProfile}
                 />
                 <View style={{ flex: 1 }}>

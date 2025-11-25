@@ -506,7 +506,7 @@ export default function PlaydateScreen() {
                   <View style={styles.cardHeader}>
                     <Image
                       source={{
-                        uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
+                        uri: post.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
                       }}
                       style={styles.profilePic}
                     />

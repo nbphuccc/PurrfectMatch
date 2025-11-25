@@ -17,6 +17,7 @@ const CATEGORIES = ['Resource', 'Care', 'Other'];
 type Post = {
   id: number;
   firebaseId: string;
+  authorId: string;
   user: string;
   avatar: string;
   created_at?: string;
@@ -124,6 +125,7 @@ export default function CommunityScreen() {
           id: index + 1,
           firebaseId: post.id,
           user: post.username,
+          authorId: post.authorId,
           avatar: profile?.avatar,
           created_at: post.createdAt.toISOString(),
           petType: post.petType,
@@ -320,7 +322,7 @@ export default function CommunityScreen() {
                       params: {
                         id: post.firebaseId,
                         user: post.user,
-                        avatar: post.avatar,
+                        authorId: post.authorId,
                         time: post.created_at ?? '',
                         petType: post.petType,
                         category: post.category,
