@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Linking,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -57,7 +58,7 @@ export default function PlaydatePost() {
     "No description provided for this playdate.";
 
   const rawImage = getParamString(params.image);
-  const image = rawImage || undefined; 
+  const image = rawImage || undefined;
 
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
@@ -71,15 +72,11 @@ export default function PlaydatePost() {
 
     const { latitude, longitude } = coords;
     const label =
-      address?.trim() ||
-      location ||
-      title ||
-      "Playdate location";
+      address?.trim() || location || title || "Playdate location";
 
     const encodedLabel = encodeURIComponent(label);
     const latLng = `${latitude},${longitude}`;
 
-    // Use Apple Maps on iOS, geo: on Android, fallback to web
     const url =
       Platform.OS === "ios"
         ? `http://maps.apple.com/?ll=${latLng}&q=${encodedLabel}`
@@ -89,13 +86,8 @@ export default function PlaydatePost() {
 
     try {
       const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        // Fallback to web if something is weird
-        const webUrl = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
-        Linking.openURL(webUrl);
-      }
+      if (supported) Linking.openURL(url);
+      else Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latLng}`);
     } catch (e) {
       console.error("Failed to open maps:", e);
     }
@@ -127,14 +119,12 @@ export default function PlaydatePost() {
     });
 
     setComment("");
-    loadComments(); 
+    loadComments();
   };
 
   useEffect(() => {
     const fetchCoordinates = async () => {
-      if (!address || !city || !state) {
-        return;
-      }
+      if (!address || !city || !state) return;
 
       const fullAddress = `${address}, ${city}, ${state} ${zip ?? ""}`;
       setLoadingMap(true);
@@ -173,120 +163,120 @@ export default function PlaydatePost() {
   }, [address, city, state, zip]);
 
   return (
-    <ScrollView style={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
+      <ScrollView
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
 
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Image
-            source={{
-              uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
-            }}
-            style={styles.profilePic}
-          />
-          <View>
-            <Text style={styles.username}>{username}</Text>
-            <Text style={styles.time}>{time}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{location}</Text>
-        <Text style={styles.subtitle}>{date}</Text>
-
-        {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
-        
-        {/* Mini map */}
-        <View style={{ marginTop: 12 }}>
-          {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
-          {mapError && <Text style={{ color: "#999" }}>{mapError}</Text>}
-          {coords && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={openInMaps}
-            style={styles.mapTouchable}
-          >
-            <MapView
-              style={styles.map}
-              pointerEvents="none"       // map stays non-interactive, tap goes to outer touchable
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-              initialRegion={{
-                latitude: coords.latitude,
-                longitude: coords.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Image
+              source={{
+                uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
               }}
-            >
-              <Marker coordinate={coords} />
-            </MapView>
-
-            {/* Small "Open in Maps" badge in the corner */}
-            <View style={styles.mapBadge}>
-              <Ionicons name="navigate-outline" size={14} color="#fff" />
-              <Text style={styles.mapBadgeText}>Open in Maps</Text>
+              style={styles.profilePic}
+            />
+            <View>
+              <Text style={styles.username}>{username}</Text>
+              <Text style={styles.time}>{time}</Text>
             </View>
-          </TouchableOpacity>
-        )}
-        </View>
-        <Text style={styles.description}>{description}</Text>
-      </View>
+          </View>
 
-      {/* Comment input */}
-      <View style={styles.commentContainer}>
-        <Ionicons name="paw-outline" size={22} color="#444" />
-        <TextInput
-          style={styles.commentInput}
-          placeholder="Write a comment..."
-          value={comment}
-          onChangeText={setComment}
-        />
-        <TouchableOpacity style={styles.postButton} onPress={handlePostComment}>
-          <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
-        </TouchableOpacity>
-      </View>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{location}</Text>
+          <Text style={styles.subtitle}>{date}</Text>
 
-      {/* Comments list */}
-      <View style={{ marginTop: 20 }}>
-        {loadingComments ? (
-          <Text style={{ color: "#666" }}>Loading comments...</Text>
-        ) : comments.length === 0 ? (
-          <Text style={{ color: "#666" }}>No comments yet — be the first!</Text>
-        ) : (
-          comments.map((c, index) => (
-            <View key={index} style={styles.commentItem}>
-              <Image
-                source={{
-                  uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
-                }}
-                style={styles.commentProfile}
-              />
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                  <Text style={styles.commentUsername}>{c.username}</Text>
-                  <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
+          {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+
+          <View style={{ marginTop: 12 }}>
+            {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
+            {mapError && <Text style={{ color: "#999" }}>{mapError}</Text>}
+            {coords && (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={openInMaps}
+                style={styles.mapTouchable}
+              >
+                <MapView
+                  style={styles.map}
+                  pointerEvents="none"
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  initialRegion={{
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                >
+                  <Marker coordinate={coords} />
+                </MapView>
+
+                <View style={styles.mapBadge}>
+                  <Ionicons name="navigate-outline" size={14} color="#fff" />
+                  <Text style={styles.mapBadgeText}>Open in Maps</Text>
                 </View>
-                <Text style={styles.commentContent}>{c.content}</Text>
-              </View>
-            </View>
-          ))
-        )}
-      </View>
+              </TouchableOpacity>
+            )}
+          </View>
 
-      <View style={{ height: 100 }} />
-    </ScrollView>
+          <Text style={styles.description}>{description}</Text>
+        </View>
+
+        <View style={styles.commentContainer}>
+          <Ionicons name="paw-outline" size={22} color="#444" />
+          <TextInput
+            style={styles.commentInput}
+            placeholder="Write a comment..."
+            value={comment}
+            onChangeText={setComment}
+          />
+          <TouchableOpacity style={styles.postButton} onPress={handlePostComment}>
+            <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ marginTop: 20 }}>
+          {loadingComments ? (
+            <Text style={{ color: "#666" }}>Loading comments...</Text>
+          ) : comments.length === 0 ? (
+            <Text style={{ color: "#666" }}>No comments yet — be the first!</Text>
+          ) : (
+            comments.map((c, index) => (
+              <View key={index} style={styles.commentItem}>
+                <Image
+                  source={{
+                    uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
+                  }}
+                  style={styles.commentProfile}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <Text style={styles.commentUsername}>{c.username}</Text>
+                    <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
+                  </View>
+                  <Text style={styles.commentContent}>{c.content}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: "#fff" },
-  header: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
-  },
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
