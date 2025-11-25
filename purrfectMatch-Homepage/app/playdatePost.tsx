@@ -7,6 +7,8 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Linking,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +17,7 @@ import {
   addPlaydateCommentFirebase,
 } from "../api/playdates";
 import { getCurrentUser } from "../api/firebaseAuth";
+import MapView, { Marker } from "react-native-maps";
 
 function timeAgo(date: Date) {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -42,6 +45,11 @@ export default function PlaydatePost() {
   const title = getParamString(params.title) || "Playdate";
   const location = getParamString(params.location) || "Location: TBD";
   const date = getParamString(params.date) || "Date: TBD";
+  const address = getParamString(params.address);
+  const city = getParamString(params.city);
+  const state = getParamString(params.state);
+  const zip = getParamString(params.zip);
+
   const username = getParamString(params.user) || "User";
   const time = getParamString(params.time) || "Just now";
   const description =
@@ -54,6 +62,44 @@ export default function PlaydatePost() {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [loadingMap, setLoadingMap] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  const openInMaps = async () => {
+    if (!coords) return;
+
+    const { latitude, longitude } = coords;
+    const label =
+      address?.trim() ||
+      location ||
+      title ||
+      "Playdate location";
+
+    const encodedLabel = encodeURIComponent(label);
+    const latLng = `${latitude},${longitude}`;
+
+    // Use Apple Maps on iOS, geo: on Android, fallback to web
+    const url =
+      Platform.OS === "ios"
+        ? `http://maps.apple.com/?ll=${latLng}&q=${encodedLabel}`
+        : Platform.OS === "android"
+        ? `geo:${latLng}?q=${latLng}(${encodedLabel})`
+        : `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        // Fallback to web if something is weird
+        const webUrl = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+        Linking.openURL(webUrl);
+      }
+    } catch (e) {
+      console.error("Failed to open maps:", e);
+    }
+  };
 
   const loadComments = async () => {
     if (!postId) return;
@@ -84,6 +130,48 @@ export default function PlaydatePost() {
     loadComments(); 
   };
 
+  useEffect(() => {
+    const fetchCoordinates = async () => {
+      if (!address || !city || !state) {
+        return;
+      }
+
+      const fullAddress = `${address}, ${city}, ${state} ${zip ?? ""}`;
+      setLoadingMap(true);
+      setMapError(null);
+
+      try {
+        const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+        const url =
+          "https://maps.googleapis.com/maps/api/geocode/json?address=" +
+          encodeURIComponent(fullAddress) +
+          `&key=${apiKey}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.status !== "OK" || !data.results?.length) {
+          setMapError("Could not find this location.");
+          return;
+        }
+
+        const loc = data.results[0].geometry.location;
+
+        setCoords({
+          latitude: loc.lat,
+          longitude: loc.lng,
+        });
+      } catch (e) {
+        console.error("Geocoding error", e);
+        setMapError("Failed to load map.");
+      } finally {
+        setLoadingMap(false);
+      }
+    };
+
+    fetchCoordinates();
+  }, [address, city, state, zip]);
+
   return (
     <ScrollView style={styles.container}>
 
@@ -106,7 +194,42 @@ export default function PlaydatePost() {
         <Text style={styles.subtitle}>{date}</Text>
 
         {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+        
+        {/* Mini map */}
+        <View style={{ marginTop: 12 }}>
+          {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
+          {mapError && <Text style={{ color: "#999" }}>{mapError}</Text>}
+          {coords && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={openInMaps}
+            style={styles.mapTouchable}
+          >
+            <MapView
+              style={styles.map}
+              pointerEvents="none"       // map stays non-interactive, tap goes to outer touchable
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              initialRegion={{
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+            >
+              <Marker coordinate={coords} />
+            </MapView>
 
+            {/* Small "Open in Maps" badge in the corner */}
+            <View style={styles.mapBadge}>
+              <Ionicons name="navigate-outline" size={14} color="#fff" />
+              <Text style={styles.mapBadgeText}>Open in Maps</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+        </View>
         <Text style={styles.description}>{description}</Text>
       </View>
 
@@ -242,5 +365,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
     color: "#333",
+  },
+  map: {
+    width: "100%",
+    height: 160,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  mapTouchable: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  mapBadge: {
+    position: "absolute",
+    right: 10,
+    bottom: 15,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  mapBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
   },
 });

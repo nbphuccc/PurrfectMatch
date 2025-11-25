@@ -42,6 +42,10 @@ Create a .env file in the purrfectMatch-Homepage directory:
 ```
 touch .env
 ```
+or if you're on Powershell,
+```
+New-Item .env -ItemType File
+```
 Get the .env file credentials in this google docs link: https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?pli=1&tab=t.hynt2e8dzz0y
 
 The .env file should look like:
