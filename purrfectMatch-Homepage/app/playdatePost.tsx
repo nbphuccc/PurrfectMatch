@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Linking,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,13 +34,8 @@ function timeAgo(date: Date) {
 export default function PlaydatePost() {
   const params = useLocalSearchParams();
 
-  const getParamString = (
-    value: string | string[] | undefined
-  ): string | undefined => {
-    if (Array.isArray(value)) return value[0];
-    if (typeof value === "string") return value;
-    return undefined;
-  };
+  const getParamString = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : typeof value === "string" ? value : undefined;
 
   const postId = getParamString(params.id) || "";
   const title = getParamString(params.title) || "Playdate";
@@ -49,7 +45,6 @@ export default function PlaydatePost() {
   const city = getParamString(params.city);
   const state = getParamString(params.state);
   const zip = getParamString(params.zip);
-
   const username = getParamString(params.user) || "User";
   const time = getParamString(params.time) || "Just now";
   const description =
@@ -57,6 +52,7 @@ export default function PlaydatePost() {
     "No description provided for this playdate.";
 
   const rawImage = getParamString(params.image);
+  const image = rawImage || undefined;
   const image = rawImage || undefined;
 
   const [comment, setComment] = useState("");
@@ -69,18 +65,11 @@ export default function PlaydatePost() {
 
   const openInMaps = async () => {
     if (!coords) return;
-
     const { latitude, longitude } = coords;
-    const label =
-      address?.trim() ||
-      location ||
-      title ||
-      "Playdate location";
-
+    const label = address?.trim() || location || title || "Playdate location";
     const encodedLabel = encodeURIComponent(label);
     const latLng = `${latitude},${longitude}`;
 
-    // Use Apple Maps on iOS, geo: on Android, fallback to web
     const url =
       Platform.OS === "ios"
         ? `http://maps.apple.com/?ll=${latLng}&q=${encodedLabel}`
@@ -89,14 +78,7 @@ export default function PlaydatePost() {
         : `https://www.google.com/maps/search/?api=1&query=${latLng}`;
 
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        // Fallback to web if something is weird
-        const webUrl = `https://www.google.com/maps/search/?api=1&query=${latLng}`;
-        Linking.openURL(webUrl);
-      }
+      (await Linking.canOpenURL(url)) ? Linking.openURL(url) : Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latLng}`);
     } catch (e) {
       console.error("Failed to open maps:", e);
     }
@@ -118,26 +100,22 @@ export default function PlaydatePost() {
 
   const handlePostComment = async () => {
     const currentUser = getCurrentUser();
-    if (!currentUser) return;
-
-    if (!comment.trim()) return;
+    if (!currentUser || !comment.trim()) return;
 
     await addPlaydateCommentFirebase({
-      postId: postId,
+      postId,
       authorId: currentUser.uid,
       username: currentUser.displayName || "User",
       content: comment.trim(),
     });
 
     setComment("");
-    loadComments(); 
+    loadComments();
   };
 
   useEffect(() => {
     const fetchCoordinates = async () => {
-      if (!address || !city || !state) {
-        return;
-      }
+      if (!address || !city || !state) return;
 
       const fullAddress = `${address}, ${city}, ${state} ${zip ?? ""}`;
       setLoadingMap(true);
@@ -159,13 +137,8 @@ export default function PlaydatePost() {
         }
 
         const loc = data.results[0].geometry.location;
-
-        setCoords({
-          latitude: loc.lat,
-          longitude: loc.lng,
-        });
-      } catch (e) {
-        console.error("Geocoding error", e);
+        setCoords({ latitude: loc.lat, longitude: loc.lng });
+      } catch {
         setMapError("Failed to load map.");
       } finally {
         setLoadingMap(false);
@@ -176,120 +149,118 @@ export default function PlaydatePost() {
   }, [address, city, state, zip]);
 
   return (
-    <ScrollView style={styles.container}>
-
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Image
-            source={{
-              uri: avatarUrl || "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
-            }}
-            style={styles.profilePic}
-          />
-          <View>
-            <Text style={styles.username}>{username}</Text>
-            <Text style={styles.time}>{time}</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Image
+              source={{ uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg" }}
+              style={styles.profilePic}
+            />
+            <View>
+              <Text style={styles.username}>{username}</Text>
+              <Text style={styles.time}>{time}</Text>
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{location}</Text>
-        <Text style={styles.subtitle}>{date}</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{location}</Text>
+          <Text style={styles.subtitle}>{date}</Text>
 
-        {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
-        
-        {/* Mini map */}
-        <View style={{ marginTop: 12 }}>
-          {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
-          {mapError && <Text style={{ color: "#999" }}>{mapError}</Text>}
-          {coords && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={openInMaps}
-            style={styles.mapTouchable}
-          >
-            <MapView
-              style={styles.map}
-              pointerEvents="none"       // map stays non-interactive, tap goes to outer touchable
-              scrollEnabled={false}
-              zoomEnabled={false}
-              rotateEnabled={false}
-              pitchEnabled={false}
-              initialRegion={{
-                latitude: coords.latitude,
-                longitude: coords.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              }}
-            >
-              <Marker coordinate={coords} />
-            </MapView>
+          {image && <Image source={{ uri: image }} style={styles.image} />}
 
-            {/* Small "Open in Maps" badge in the corner */}
-            <View style={styles.mapBadge}>
-              <Ionicons name="navigate-outline" size={14} color="#fff" />
-              <Text style={styles.mapBadgeText}>Open in Maps</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        </View>
-        <Text style={styles.description}>{description}</Text>
-      </View>
+          <View style={{ marginTop: 12 }}>
+            {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
+            {mapError && <Text style={{ color: "#999" }}>{mapError}</Text>}
+            {coords && (
+              <TouchableOpacity activeOpacity={0.9} onPress={openInMaps} style={styles.mapTouchable}>
+                <MapView
+                  style={styles.map}
+                  pointerEvents="none"
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  initialRegion={{
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                >
+                  <Marker coordinate={coords} />
+                </MapView>
 
-      {/* Comment input */}
-      <View style={styles.commentContainer}>
-        <Ionicons name="paw-outline" size={22} color="#444" />
-        <TextInput
-          style={styles.commentInput}
-          placeholder="Write a comment..."
-          value={comment}
-          onChangeText={setComment}
-        />
-        <TouchableOpacity style={styles.postButton} onPress={handlePostComment}>
-          <Text style={{ color: "white", fontWeight: "600" }}>Post</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Comments list */}
-      <View style={{ marginTop: 20 }}>
-        {loadingComments ? (
-          <Text style={{ color: "#666" }}>Loading comments...</Text>
-        ) : comments.length === 0 ? (
-          <Text style={{ color: "#666" }}>No comments yet — be the first!</Text>
-        ) : (
-          comments.map((c, index) => (
-            <View key={index} style={styles.commentItem}>
-              <Image
-                source={{
-                  uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
-                }}
-                style={styles.commentProfile}
-              />
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                  <Text style={styles.commentUsername}>{c.username}</Text>
-                  <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
+                <View style={styles.mapBadge}>
+                  <Ionicons name="navigate-outline" size={14} color="#fff" />
+                  <Text style={styles.mapBadgeText}>Open in Maps</Text>
                 </View>
-                <Text style={styles.commentContent}>{c.content}</Text>
-              </View>
-            </View>
-          ))
-        )}
-      </View>
+              </TouchableOpacity>
+            )}
+          </View>
 
-      <View style={{ height: 100 }} />
-    </ScrollView>
+          <Text style={styles.description}>{description}</Text>
+        </View>
+
+        {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
+        <View style={styles.commentRow}>
+          <Image
+            source={{ uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg" }}
+            style={styles.commentProfile}
+          />
+
+          <View style={styles.commentBubble}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Write a comment..."
+              value={comment}
+              onChangeText={setComment}
+            />
+          </View>
+
+          <TouchableOpacity style={styles.postButton} onPress={handlePostComment}>
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Post</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* COMMENTS LIST */}
+        <View style={{ marginTop: 20 }}>
+          {loadingComments ? (
+            <Text style={{ color: "#666" }}>Loading comments...</Text>
+          ) : comments.length === 0 ? (
+            <Text style={{ color: "#666" }}>No comments yet — be the first!</Text>
+          ) : (
+            comments.map((c) => (
+              <View key={c.id} style={styles.commentItem}>
+                <Image
+                  source={{ uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg" }}
+                  style={styles.commentProfile}
+                />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <Text style={styles.commentUsername}>{c.username}</Text>
+                    <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
+                  </View>
+                  <Text style={styles.commentContent}>{c.content}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: "#fff" },
-  header: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
-  },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -300,16 +271,15 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  profilePic: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
+
+  profilePic: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
+
   username: { fontWeight: "600", fontSize: 15 },
   time: { color: "#666", fontSize: 12 },
+
   title: { fontSize: 20, fontWeight: "bold", marginBottom: 6 },
   subtitle: { fontSize: 14, color: "#666", marginBottom: 4 },
+
   image: {
     width: "100%",
     height: 220,
@@ -317,32 +287,50 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     resizeMode: "cover",
   },
+
   description: {
     fontSize: 15,
     color: "#333",
     marginBottom: 14,
     lineHeight: 20,
   },
-  commentContainer: {
+
+  /* ⭐ FINAL COMMUNITY COMMENT BAR ⭐ */
+  commentRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 10,
     gap: 10,
+  },
+
+  commentBubble: {
+    flex: 1,
+    backgroundColor: "#f8f8f8",
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
+
+  commentProfile: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ddd",
+  },
+
   commentInput: {
-    flex: 1,
-    fontSize: 14,
+    fontSize: 15,
   },
+
   postButton: {
     backgroundColor: "#3B82F6",
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 12,
   },
+
   commentItem: {
     flexDirection: "row",
     gap: 10,
@@ -350,36 +338,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "#eee",
   },
-  commentProfile: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#ddd",
-  },
-  commentUsername: {
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  commentTime: {
-    color: "#888",
-    fontSize: 12,
-  },
-  commentContent: {
-    fontSize: 14,
-    marginTop: 2,
-    color: "#333",
-  },
+
+  commentUsername: { fontWeight: "600", fontSize: 14 },
+  commentTime: { color: "#888", fontSize: 12 },
+  commentContent: { fontSize: 14, marginTop: 2, color: "#333" },
+
   map: {
     width: "100%",
     height: 160,
     borderRadius: 10,
     marginBottom: 10,
   },
-  mapTouchable: {
-    marginTop: 10,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
+  mapTouchable: { marginTop: 10, borderRadius: 12, overflow: "hidden" },
+
   mapBadge: {
     position: "absolute",
     right: 10,
