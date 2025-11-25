@@ -5,8 +5,7 @@ import {
   updateProfile,
   User
 } from 'firebase/auth';
-import { auth, db, db } from '../config/firebase';
-import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
+import { auth, db } from '../config/firebase';
 import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
 
 interface SignupData {

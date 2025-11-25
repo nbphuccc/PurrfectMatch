@@ -8,6 +8,9 @@ export default {
       scheme: "purrfectmatchhomepage",
       userInterfaceStyle: "automatic",
       newArchEnabled: true,
+	  "plugins": [
+		"expo-web-browser"
+		],
       splash: {
         image: "./assets/images/splash-icon.png",
         resizeMode: "contain",
