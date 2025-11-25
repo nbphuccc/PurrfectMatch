@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { getCommentsFirebase, addCommentFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
+import { get } from 'axios';
 
 const formatRelativeTime = (iso: string) => {
   const t = Date.parse(iso);
@@ -41,6 +42,7 @@ export default function PostDetail() {
   const [commentsList, setCommentsList] = useState<Array<{ id: number; user: string; avatar?: string; text: string; created_at: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const router = useRouter();
 
   const { id, user, time, petType, category, description, image, likes, comments } = params as Record<string, string | undefined>;
@@ -60,7 +62,11 @@ export default function PostDetail() {
         console.log('Loading comments from Firebase for post:', id);
         const firebaseComments = await getCommentsFirebase(id);
         if (!mounted) return;
-        
+        const currentUser = getCurrentUser();
+        if (currentUser){
+          const userProfile = await getUserProfileFirebase(currentUser.uid);
+          setAvatarUrl(userProfile?.avatar);
+        }
         const formatted = await Promise.all(
           firebaseComments.map(async (c, idx) => {
             const profile = await getUserProfileFirebase(c.authorId);
@@ -117,7 +123,6 @@ export default function PostDetail() {
       const formatted = await Promise.all(
           firebaseComments.map(async (c, idx) => {
             const profile = await getUserProfileFirebase(c.authorId);
-
             return {
               id: idx + 1,
               user: c.username,
@@ -155,7 +160,7 @@ export default function PostDetail() {
           <View style={{ marginTop: 30 }}>
             <View style={styles.commentInputRow}>
               <Image
-                source={{ uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                source={{ uri: avatarUrl || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
                 style={styles.avatar}
               />
 
