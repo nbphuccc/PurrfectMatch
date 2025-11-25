@@ -13,7 +13,6 @@ It helps build a friendly community for pets and their humans, making it easier 
 - **npm**  
 - **Expo CLI** (for mobile app)  
 - **Git** (to clone the repository)  
-- Optional: **SQLite** (for backend data persistence)
 
 ---
 
@@ -24,20 +23,15 @@ It helps build a friendly community for pets and their humans, making it easier 
 git clone https://github.com/nbphuccc/PurrfectMatch.git
 cd PurrfectMatch
 ```
-### 2. In Terminal A, install dependencies and run backend
-```
-cd server
-npm install
-npm rebuild better-sqlite3
-npm start
-```
-### 3. In Terminal B, set up Firebase and run frontend
-#### 3.1 Install dependencies
+### 2. Frontend (Firebase) - Install & Run
+This project uses Firebase for backend services. The legacy Express backend has been archived and is not required to run the app.
+
+#### 2.1 Install dependencies
 ```
 cd purrfectMatch-Homepage
 npm install
 ```
-#### 3.2 Configure Firebase
+#### 2.2 Configure Firebase
 Create a .env file in the purrfectMatch-Homepage directory:
 ```
 touch .env
@@ -58,12 +52,12 @@ FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
 ```
 Security Note: Never commit the .env file to Git. It's already in .gitignore.
-#### 3.3 Start the app
+#### 2.3 Start the app
 ```
 npm start
 ```
 
-### 4. Scan the QR code that show up in terminal using Expo Go on your phone
+### 3. Scan the QR code that show up in terminal using Expo Go on your phone
 
 
 ## Using the App
