@@ -58,6 +58,7 @@ FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
 FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=you_google_api_key_here
 ```
 Security Note: Never commit the .env file to Git. It's already in .gitignore.
 #### 2.3 Start the app
