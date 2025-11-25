@@ -75,6 +75,9 @@ export interface PlaydatePostFirebase {
   createdAt: Date;
   likes?: number;
   comments?: number;
+  locationName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 const COLLECTION = "playdate_posts";

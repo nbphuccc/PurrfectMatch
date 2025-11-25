@@ -19,6 +19,7 @@ import {
   createPlaydateFirebase,
   listPlaydatesFirebase,
 } from "../../api/playdates";
+import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
@@ -43,6 +44,11 @@ type CardPost = {
   likes: number;
   comments: number;
   liked: boolean;
+  address?: string | null;
+  zip?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationName?: string | null;
 };
 
 async function uploadImageToStorage(uri: string): Promise<string> {
@@ -59,6 +65,13 @@ async function uploadImageToStorage(uri: string): Promise<string> {
   const downloadUrl = await getDownloadURL(storageRef);
   return downloadUrl;
 }
+
+type SelectedLocation = {
+  latitude: number;
+  longitude: number;
+};
+
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export default function PlaydateScreen() {
   const router = useRouter();
@@ -93,6 +106,8 @@ export default function PlaydateScreen() {
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [localImageUri, setLocalImageUri] = React.useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = React.useState(false);
+  const [locationQuery, setLocationQuery] = React.useState('');
+  const [selectedLocation, setSelectedLocation] = React.useState<SelectedLocation | null>(null);
 
   const dynamicCardWidth = width > 900 ? 800 : width > 600 ? 550 : "100%";
 
@@ -106,6 +121,51 @@ export default function PlaydateScreen() {
     setFormData((prev) => ({ ...prev, [key]: value }));
     if (errors[key as "time" | "date" | "petBreed" | "city"]) {
       setErrors((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const geocodeLocation = async () => {
+    const query = locationQuery.trim();
+    if (!query) {
+      showAlert('Location required', 'Please type a park name or address first.');
+      return;
+    }
+  
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn('Missing EXPO_PUBLIC_GOOGLE_MAPS_API_KEY');
+      showAlert('Config error', 'Map lookup is not configured yet.');
+      return;
+    }
+  
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+        query
+      )}&key=${GOOGLE_MAPS_API_KEY}`;
+  
+      const res = await fetch(url);
+      const data = await res.json();
+  
+      if (data.status !== 'OK' || !data.results.length) {
+        showAlert('Not found', 'Could not find that location. Try a more specific address.');
+        return;
+      }
+  
+      const result = data.results[0];
+      const { lat, lng } = result.geometry.location;
+  
+      setSelectedLocation({
+        latitude: lat,
+        longitude: lng,
+      });
+  
+      // Optional: overwrite address with the formatted address returned by Google
+      setFormData(prev => ({
+        ...prev,
+        address: result.formatted_address,
+      }));
+    } catch (err) {
+      console.error('Geocoding failed:', err);
+      showAlert('Error', 'Failed to look up that location. Please try again.');
     }
   };
 
@@ -224,6 +284,12 @@ export default function PlaydateScreen() {
         imageUrl: finalImageUrl,
         likes: 0,
         comments: 0,
+        locationName:
+          locationQuery.trim() ||
+          formData.address?.trim() ||
+          trimmedCity,
+        latitude: selectedLocation?.latitude ?? null,
+        longitude: selectedLocation?.longitude ?? null,
       });
 
       // Reset form
@@ -239,6 +305,8 @@ export default function PlaydateScreen() {
         address: "",
         zip: "",
       });
+      setLocationQuery('');
+      setSelectedLocation(null);
       setLocalImageUri(null);
 
       await loadPlaydates();
@@ -284,6 +352,11 @@ export default function PlaydateScreen() {
         likes: post.likes ?? 0,
         comments: post.comments ?? 0,
         liked: false,
+        address: post.address,
+        zip: post.zip,
+        latitude: post.latitude ?? null,
+        longitude: post.longitude ?? null,
+        locationName: post.locationName ?? null,
       }));
 
       setPosts(formattedPosts);
@@ -411,6 +484,10 @@ export default function PlaydateScreen() {
                         location: `${post.city}, ${post.state}`,
                         date: post.whenAt,
                         image: post.image ? encodeURIComponent(post.image) : "",
+                        address: post.address ?? "",
+                        city: post.city,
+                        state: post.state,
+                        zip: post.zip ?? "",
                       },
                     })
                   }
@@ -613,6 +690,51 @@ export default function PlaydateScreen() {
               onChangeText={(text) => handleInputChange("description", text)}
               multiline
             />
+                      <Text style={styles.label}>Playdate Location (optional):</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Type park name or address"
+            value={locationQuery}
+            onChangeText={setLocationQuery}
+          />
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#E5F0FF', marginTop: 8 }]}
+            onPress={geocodeLocation}
+          >
+            <Text style={styles.buttonText}>Find on Map</Text>
+          </TouchableOpacity>
+
+          {selectedLocation && (
+            <View
+              style={{
+                marginTop: 10,
+                borderRadius: 8,
+                overflow: 'hidden',
+                height: 200,
+              }}
+            >
+              <MapView
+                style={{ flex: 1 }}
+                initialRegion={{
+                  latitude: selectedLocation.latitude,
+                  longitude: selectedLocation.longitude,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
+                }}
+                region={{
+                  latitude: selectedLocation.latitude,
+                  longitude: selectedLocation.longitude,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+              >
+                <Marker coordinate={selectedLocation} />
+              </MapView>
+            </View>
+          )}
 
             <TouchableOpacity
               style={[styles.button, { backgroundColor: "#F7D9C4" }]}
