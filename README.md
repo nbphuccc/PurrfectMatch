@@ -17,7 +17,7 @@ Purrfect Match is a lightweight mobile app designed to connect pet owners throug
 - Keyword search on community board
 
 ## Prerequisites
-Before installing Purrfect Match, make sure you have the following.
+Before installing Purrfect Match (frontend), make sure you have the following.
 - **Node.js** (version 18 or higher)
 - **npm** (comes with Node)
 - **Expo Go App**
@@ -31,20 +31,15 @@ Before installing Purrfect Match, make sure you have the following.
 git clone https://github.com/nbphuccc/PurrfectMatch.git
 cd PurrfectMatch
 ```
-### 2. In Terminal A, install dependencies and run backend
-```
-cd server
-npm install
-npm rebuild better-sqlite3
-npm start
-```
-### 3. In Terminal B, set up Firebase and run frontend
-#### 3.1 Install dependencies
+### 2. Frontend (Firebase) - Install & Run
+This repository uses Firebase for backend services. 
+
+#### 2.1 Install dependencies
 ```
 cd purrfectMatch-Homepage
 npm install
 ```
-#### 3.2 Configure Firebase
+#### 2.2 Configure Firebase
 Create a .env file in the purrfectMatch-Homepage directory:
 ```
 touch .env
@@ -65,38 +60,24 @@ FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
 ```
 Security Note: Never commit the .env file to Git. It's already in .gitignore.
-#### 3.3 Start the app
+#### 2.3 Start the app
 ```
 npm start
 ```
 
-### 4. Scan the QR code that show up in terminal using Expo Go on your phone
+### 3. Scan the QR code
+Scan the QR code that appears in the terminal using Expo Go on your phone.
 
 
 ## Repository Structure
 
-- **Server** – Node.js + Express server
-  - **db/** - DB schema and sample data
-    - **schema.sql** 
-  - **node_modules/** - Dependencies 
-  - **src/**  
-    - **controllers/** – Parse req/res, call service, set HTTP codes 
-    requests 
-    - **dao/** – Data Access Layer
-    - **moddlewares/** – Reusable Express middlewares
-    - **routes/** – API route definitions  
-    - **services/** – Business logic + validation
-    - **tests/** – Backend integration/unit tests
-  - **app.ts** - Exports configured Express app (for testing)
-  - **index.ts** - Entry point: creates and starts Express app
-  
-  
-- **App** – React Native app (Expo)  
-  - **assets/** – Images, icons  
-  - **components/** – Reusable UI components  
-  - **screens/** – App screens (Browse, Detail, Favorites, Tips)  
-  - **navigation/** – React Navigation setup  
-  - **app.js** – Entry point for React Native
+- **Frontend (App)** – React Native app (Expo) using Firebase for backend services
+  - **purrfectMatch-Homepage/**
+    - **api/**: Firebase helper functions (community.ts, playdates.ts, auth.ts)
+    - **app/**: App screens and navigation
+    - **assets/**: images, icons
+    - **components/**: reusable UI components
+    - **tests/**: frontend tests (`*.test.tsx`)
 
 
 ## Reporting Bugs

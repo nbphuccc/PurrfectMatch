@@ -22,15 +22,11 @@ jobs:
       with:
         node-version: 20
 
-    - name: Install and test backend
-      working-directory: ./server
-      run: |
-        npm ci
-        npm rebuild better-sqlite3
-        npm test
-
+    # The legacy server has been archived; CI now runs frontend-only tests/builds.
     - name: Install and test frontend
       working-directory: ./purrfectMatch-Homepage
       run: |
         npm ci
         npm test
+        # Optional: build step for web/native (uncomment if needed)
+        # npm run build

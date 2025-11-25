@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { getCommentsFirebase, addCommentFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
-import { get } from 'axios';
 
 const formatRelativeTime = (iso: string) => {
   const t = Date.parse(iso);

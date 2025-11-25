@@ -13,17 +13,12 @@
 ## 2) Directory Structure
 
 ### purrfectMatch-Homepage/
-- **api/**: Firebase and REST API functions (community.ts, Client.ts)
+- **api/**: Firebase helper functions (community.ts, playdates.ts, auth.ts)
 - **app/**: App screens and navigation
-- **(tabs)/**:screens, navigation, components, features, services, store, hooks, utils  
-- **assets/**: images, fonts  
-- **tests/**: frontend tests (`*.test.tsx`)  
+- **(tabs)/**: screens, navigation, components, features, services, store, hooks, utils
+- **assets/**: images, fonts
+- **tests/**: frontend tests (`*.test.tsx`)
 - **package.json**, **app.json** or **app.config.ts**
-
-### server/
-- **src/**: `app.ts`, `index.ts`, `routes/`, `controllers/`, `services/`, `dao/`, `models/`, `middlewares/`, `__tests__/` or `tests/`
-- **db/**: `schema.sql`, optional `seeds.sql`
-- **package.json**
 
 ### docs/
 - `README`, `User Manual`, `Developer Guide`, `reports`, `coding-guidelines`
@@ -31,16 +26,16 @@
 ### .github/workflows/
 - `ci.yml`: GitHub Actions (lint/test)
 
-**Source:** `purrfectMatch-Homepage/src` and `server/src`  
-**Tests:** `purrfectMatch-Homepage/__tests__` and `server/src/tests`  
-**Data:** `server/db/` (schema + seeds)
+**Source:** `purrfectMatch-Homepage/src`  
+**Tests:** `purrfectMatch-Homepage/__tests__`   
+**Data:** Cloud Firestore (production + emulator)
 
 ---
 
 ## 3) Build the Software
 
 ### 3.1 Prerequisites
-- Node.js v18+, npm, Git, Expo (use `npx expo`), SQLite driver (bundled by node module), Firebase
+- Node.js v18+, npm, Git, Expo (use `npx expo`), Firebase
 
 ### 3.2 Installation & How to Run the App
 
@@ -49,20 +44,15 @@
 git clone https://github.com/nbphuccc/PurrfectMatch.git
 cd PurrfectMatch
 ```
-#### 2. In Terminal A, install dependencies and run backend
-```
-cd server
-npm install
-npm rebuild better-sqlite3
-npm start
-```
-#### 3. In Terminal B, set up Firebase and run frontend
-##### 3.1 Install dependencies
+#### 2. In Terminal, set up Firebase and run frontend
+The current development flow uses Firebase for backend services. 
+
+##### 2.1 Install dependencies
 ```
 cd purrfectMatch-Homepage
 npm install
 ```
-##### 3.2 Configure Firebase
+##### 2.2 Configure Firebase
 Create a .env file in the purrfectMatch-Homepage directory:
 ```
 touch .env
@@ -84,57 +74,46 @@ FIREBASE_APP_ID=your_app_id
 ```
 Security Note: Never commit the .env file to Git. It's already in .gitignore.
 
-#### 3.3 Start the app
+#### 2.3 Start the app
 ```
 npm start
 ```
 
-#### 4. Scan the QR code that show up in terminal using Expo Go on your phone
+#### 3. Scan the QR code that show up in terminal using Expo Go on your phone
 ---
 
 ## 4) Test the Software
 
-### 4.1 Backend (Jest + supertest)
-- **Location:** `server/tests/`
-- **Commands:**
-  - `cd server`
-  - `npm test`
-
-### 4.2 Frontend (Jest + React Native Testing Library)
+### 4.1 Frontend (Jest + React Native Testing Library)
 - **Location:** `purrfectMatch-Homepage/__tests__/`
 - **Commands:**
   - `cd purrfectMatch-Homepage`
   - `npm test`
 
-### 4.3 Continuous Integration
+### 4.2 Continuous Integration
 - CI runs on PRs to main and on push (as configured) using GitHub Actions.
 - **Workflow file:** `.github/workflows/ci.yml`
-- **CI steps:** install, build and test frontend + backend.
+- **CI steps:** install, build and test frontend. If your CI still references the archived server, update the workflow to remove server steps.
 
 ---
 
 ## 5) Add New Tests
 
 ### 5.1 Naming & Placement
-**Backend**
-- Place in `server/tests/`
-- Use `*.test.ts`
-
 **Frontend**
 - Place in `purrfectMatch-Homepage/__tests__/`
 - Use `*.test.tsx`
 
 ### 5.2 Harness
-**Backend**
-- Use Jest + supertest to hit Express app endpoints.
-- Mock external dependencies and avoid network calls outside the app.
+**Backend / Integration tests**
+- Use Firebase Emulator Suite + Jest for integration tests (start → seed → run → stop).
+- Mock external APIs; prefer emulator for Firestore/Storage/Auth semantics.
 
 **Frontend**
 - Use Jest + React Native Testing Library.
 - Test components, hooks, screens; mock network calls and navigation.
 
 ### 5.3 Running Locally
-- Backend: `cd server && npm test`  
 - Frontend: `cd purrfectMatch-Homepage && npm test`
 
 ---
@@ -156,11 +135,7 @@ npm start
 - `cd purrfectMatch-Homepage`
 - `npm run`, scan QR code, and choose key for iOS
 
-### 6.3 Backend Artifact
-- Build: `cd server && npm run build`
-- Start: `npm start`
-
-### 6.4 Post-build Sanity Checklist
+### 6.3 Post-build Sanity Checklist
 - App version in UI matches.
 - Can sign up/login, create post, view post, comment successfully.
 - Playdates/Community lists load correctly.
@@ -188,20 +163,16 @@ npm start
 ---
 
 ## 8) Code Style & Tooling
-- TypeScript strict mode in frontend and backend.  
+- TypeScript strict mode in frontend.  
 - ESLint + Prettier (Airbnb style for JS/TS).  
 - React/React Native best practices: hooks, small components.  
 - SQL style per Simon Holywell.  
 
 ---
 
-## 9) Troubleshooting
+### 9) Troubleshooting
 - **Expo app cannot reach API:**  
-  Use LAN IP for `EXPO_PUBLIC_API_BASE_URL` and ensure phone and computer are on the same Wi-Fi network.  
-- **CORS errors:**  
-  Set `CORS_ORIGIN` in `server/.env` to your Expo dev origin.  
-- **SQLite file missing:**  
-  Run your DB init/reset script or apply `db/schema.sql`.  
+  Ensure Firebase configuration is correct in the frontend `.env` and that emulator (if used) is running. Use LAN or tunnel mode in Expo as needed.  
 - **Test runs hang:**  
   Mock network calls; avoid external services.
 
