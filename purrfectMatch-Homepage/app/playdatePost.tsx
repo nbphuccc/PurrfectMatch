@@ -16,7 +16,7 @@ import {
   getPlaydateCommentsFirebase,
   addPlaydateCommentFirebase,
 } from "../api/playdates";
-import { getCurrentUser } from "../api/firebaseAuth";
+import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
 import MapView, { Marker } from "react-native-maps";
 
 function timeAgo(date: Date) {
@@ -57,7 +57,7 @@ export default function PlaydatePost() {
     "No description provided for this playdate.";
 
   const rawImage = getParamString(params.image);
-  const image = rawImage || undefined; 
+  const image = rawImage || undefined;
 
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
@@ -65,6 +65,7 @@ export default function PlaydatePost() {
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loadingMap, setLoadingMap] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const openInMaps = async () => {
     if (!coords) return;
@@ -107,6 +108,8 @@ export default function PlaydatePost() {
     const data = await getPlaydateCommentsFirebase(postId);
     setComments(data);
     setLoadingComments(false);
+    //const profile = await getUserProfileFirebase(authorId);
+    //setAvatarUrl(profile?.avatar || null);
   };
 
   useEffect(() => {
@@ -179,7 +182,7 @@ export default function PlaydatePost() {
         <View style={styles.cardHeader}>
           <Image
             source={{
-              uri: "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
+              uri: avatarUrl || "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg",
             }}
             style={styles.profilePic}
           />

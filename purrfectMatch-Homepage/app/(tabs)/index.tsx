@@ -136,7 +136,7 @@ export default function CommunityScreen() {
         };
       }));
       
-      console.log(`Loaded ${formattedPosts.length} posts from Firebase`);
+      console.log(`Loaded ${formattedPosts.length} community posts from Firebase`);
       setPosts(formattedPosts);
       setFilteredPosts(formattedPosts);
     } catch (err: any) {

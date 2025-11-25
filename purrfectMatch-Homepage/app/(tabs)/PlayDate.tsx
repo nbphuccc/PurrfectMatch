@@ -23,7 +23,8 @@ import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
-import { getCurrentUser } from "../../api/firebaseAuth";
+import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
+import { get } from "axios";
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
@@ -32,8 +33,10 @@ const US_STATES = [
 ];
 
 type CardPost = {
-  id: string;     
+  id: string;
+  authorId: string     
   user: string;
+  avatar: string;
   time: string;
   title: string;
   city: string;
@@ -339,25 +342,32 @@ export default function PlaydateScreen() {
     try {
       const firebasePosts = await listPlaydatesFirebase();
 
-      const formattedPosts: CardPost[] = firebasePosts.map((post) => ({
-        id: post.id, 
-        user: post.username,
-        time: post.createdAt.toLocaleString(),
-        title: post.title,
-        city: post.city,
-        state: post.state,
-        image: post.imageUrl || "",
-        description: post.description,
-        whenAt: post.whenAt,
-        likes: post.likes ?? 0,
-        comments: post.comments ?? 0,
-        liked: false,
-        address: post.address,
-        zip: post.zip,
-        latitude: post.latitude ?? null,
-        longitude: post.longitude ?? null,
-        locationName: post.locationName ?? null,
-      }));
+      const formattedPosts: CardPost[] = await Promise.all(
+        firebasePosts.map(async (post) => {
+          const profile = await getUserProfileFirebase(post.authorId);
+          return {
+            id: post.id,
+            authorId: post.authorId,
+            user: post.username,
+            avatar: profile?.avatar || "",
+            time: post.createdAt.toLocaleString(),
+            title: post.title,
+            city: post.city,
+            state: post.state,
+            image: post.imageUrl || "",
+            description: post.description,
+            whenAt: post.whenAt,
+            likes: post.likes ?? 0,
+            comments: post.comments ?? 0,
+            liked: false,
+            address: post.address,
+            zip: post.zip,
+            latitude: post.latitude ?? null,
+            longitude: post.longitude ?? null,
+            locationName: post.locationName ?? null,
+          };
+        })
+      );
 
       setPosts(formattedPosts);
       setFilteredPosts(formattedPosts);
@@ -476,7 +486,8 @@ export default function PlaydateScreen() {
                     router.push({
                       pathname: "/playdatePost",
                       params: {
-                        id: post.id, 
+                        id: post.id,
+                        authorId: post.authorId,
                         title: post.title,
                         user: post.user,
                         time: post.time,
