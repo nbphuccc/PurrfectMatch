@@ -30,8 +30,8 @@ export interface PlaydatePostFirebase {
   place: string;
   imageUrl?: string;
   createdAt: Date;
-  likes?: number;
-  comments?: number;
+  likes: number;
+  comments: number;
   locationName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -189,5 +189,64 @@ export async function getPlaydateCommentsFirebase(
   } catch (error) {
     console.error("Error fetching playdate comments:", error);
     return [];
+  }
+}
+
+// ==================== LIKES (FIREBASE) ====================
+
+export async function toggleLikeFirebase(postId: string, userId: string) {
+  try {
+    const postRef = doc(db, 'playdate_posts', postId);
+    const likesRef = collection(db, 'playdate_likes');
+    
+    // Check if user already liked this post
+    const likeQuery = query(
+      likesRef,
+      where('postId', '==', postId),
+      where('userId', '==', userId)
+    );
+    const likeSnapshot = await getDocs(likeQuery);
+    
+    if (likeSnapshot.empty) {
+      // Add like
+      await addDoc(likesRef, {
+        postId,
+        userId,
+        createdAt: Timestamp.now(),
+      });
+      await updateDoc(postRef, {
+        likes: increment(1),
+      });
+      console.log('Like added to Firebase');
+      return { liked: true };
+    } else {
+      // Remove like
+      const likeDoc = likeSnapshot.docs[0];
+      await deleteDoc(likeDoc.ref);
+      await updateDoc(postRef, {
+        likes: increment(-1),
+      });
+      console.log('Like removed from Firebase');
+      return { liked: false };
+    }
+  } catch (error) {
+    console.error('Error toggling like in Firebase:', error);
+    throw error;
+  }
+}
+
+export async function getLikeStatusFirebase(postId: string, userId: string): Promise<boolean> {
+  try {
+    const likesRef = collection(db, 'playdate_likes');
+    const likeQuery = query(
+      likesRef,
+      where('postId', '==', postId),
+      where('userId', '==', userId)
+    );
+    const likeSnapshot = await getDocs(likeQuery);
+    return !likeSnapshot.empty;
+  } catch (error) {
+    console.error('Error checking like status:', error);
+    return false;
   }
 }
