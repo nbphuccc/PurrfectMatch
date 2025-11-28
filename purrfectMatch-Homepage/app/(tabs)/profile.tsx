@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image } from 'react-native';
-import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase} from '../../api/firebaseAuth';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image, Switch } from 'react-native';
+import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { listCommunityPostsFirebase, CommunityPostFirebase } from '../../api/community';
@@ -21,7 +21,11 @@ export default function Profile() {
   const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [profile, setProfile] = useState<ProfileFirebase | null>(null);
-  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(profile?.name || "");
+  const [editedBio, setEditedBio] = useState(profile?.bio || "");
+  const [emailIsPublic, setEmailIsPublic] = useState(profile?.publicEmail ?? false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -87,25 +91,20 @@ export default function Profile() {
       const asset = result.assets[0];
       const localUri = asset.uri;
 
-      // 1️⃣ Convert to blob for upload
       const response = await fetch(localUri);
       const blob = await response.blob();
 
-      // 2️⃣ Upload to Firebase Storage
       const storage = getStorage();
       const storageRef = ref(storage, `avatars/${currentUser?.id}.jpg`);
       await uploadBytes(storageRef, blob);
 
-      // 3️⃣ Get download URL
       const downloadURL = await getDownloadURL(storageRef);
 
-      // 4️⃣ Update Firestore profile
       await setUserProfileFirebase(currentUser!.id, {
         ...profile!,
         avatar: downloadURL,
       });
 
-      // ✅ Update local state to rerender immediately
       setProfile({
         ...profile!,
         avatar: downloadURL,
@@ -188,6 +187,21 @@ export default function Profile() {
     }
   };
 
+  const handleSaveProfile = async (name: string, bio: string) => {
+    try {
+      if (!currentUser) return;
+      await updateProfileFirebase(currentUser.id, {
+        name: name.trim(),
+        bio: bio.trim(),
+        publicEmail: emailIsPublic,
+      });
+      setProfile(prev => prev ? { ...prev, name, bio } : prev);
+      console.log("Profile saved!");
+    } catch (e) {
+      console.error("Failed to update profile:", e);
+    }
+  };
+
   if (!isLoggedIn) {
     return (
       <View style={styles.container}>
@@ -260,7 +274,7 @@ export default function Profile() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
           <TouchableOpacity onPress={handlePickImage}>
@@ -300,24 +314,89 @@ export default function Profile() {
         </TouchableOpacity>
       </View>
 
-      {/* Name */}
-      {profile?.name !== undefined && profile?.name !== null ? (
-        <Text style={styles.name}>
-          {profile.name !== "" ? profile.name : "Name not set"}
-        </Text>
-      ) : null}
+      <View style={styles.profileInfoBox}>
+        {/* Name */}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Name</Text>
 
-      {/* Email - only show if publicEmail */}
-      {profile?.publicEmail ? (
-        <Text style={styles.email}>{currentUser?.email}</Text>
-      ) : (
-        <Text style={styles.emailPrivate}>Email is private</Text>
-      )}
+          {isEditing ? (
+            <TextInput
+              style={styles.inputField}
+              value={editedName}
+              onChangeText={setEditedName}
+              placeholder="Enter your name"
+            />
+          ) : (
+            <Text style={styles.infoValue}>
+              {profile?.name ? profile.name : "Not set"}
+            </Text>
+          )}
+          <View style={styles.infoDivider} />
+        </View>
 
-      {/* Bio */}
-      <Text style={styles.bio}>
-        {profile?.bio && profile.bio !== "" ? profile.bio : "Bio not set"}
-      </Text>
+        {/* Email */}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Email</Text>
+
+          {isEditing ? (
+            // Show toggle when editing
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Text style={styles.infoValue}>
+                {emailIsPublic ? "Public" : "Private"}
+              </Text>
+
+              <Switch
+                value={emailIsPublic}
+                onValueChange={(value: boolean) => setEmailIsPublic(value)}
+              />
+            </View>
+          ) : (
+            // Normal view mode
+            <Text style={styles.infoValue}>
+              {emailIsPublic ? "Public" : "Private"}
+            </Text>
+          )}
+
+          <View style={styles.infoDivider} />
+        </View>
+
+
+        {/* Bio */}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Bio</Text>
+
+          {isEditing ? (
+            <TextInput
+              style={[styles.inputField, { height: 80 }]}
+              value={editedBio}
+              onChangeText={setEditedBio}
+              placeholder="Enter your bio"
+              multiline
+            />
+          ) : (
+            <Text style={styles.infoValue}>
+              {profile?.bio ? profile.bio : "Not set"}
+            </Text>
+          )}
+        </View>
+
+        {/* Edit / Save button */}
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => {
+            if (isEditing) {
+              // Apply changes here
+              handleSaveProfile(editedName, editedBio);
+            }
+            setIsEditing(prev => !prev);
+          }}
+        >
+          <Text style={styles.editButtonText}>
+            {isEditing ? "Apply Changes" : "Edit"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
 
       {/* User's Posts Section */}
       <View style={styles.postsSection}>
@@ -400,8 +479,6 @@ export default function Profile() {
     </ScrollView>
   );
 }
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -683,5 +760,64 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 20,
   },
+  profileInfoBox: {
+  backgroundColor: '#fff',
+  padding: 20,
+  marginHorizontal: 16,
+  marginTop: 20,
+  borderRadius: 12,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  elevation: 3,
+},
 
+infoRow: {
+  marginBottom: 16,
+},
+
+infoLabel: {
+  fontSize: 16,
+  color: '#777',
+  marginBottom: 4,
+  fontWeight: '500',
+},
+
+infoValue: {
+  fontSize: 15,
+  color: '#555',
+  lineHeight: 20,
+},
+
+infoDivider: {
+  height: 1,
+  backgroundColor: '#eee',
+  marginTop: 12,
+},
+
+editButton: {
+  alignSelf: "flex-end",
+  backgroundColor: "#007AFF",
+  paddingHorizontal: 14,
+  paddingVertical: 6,
+  borderRadius: 8,
+  marginBottom: 12,
+},
+editButtonText: {
+  color: "#fff",
+  fontWeight: "600",
+},
+
+inputField: {
+  borderWidth: 1,
+  borderColor: "#ccc",
+  borderRadius: 8,
+  paddingHorizontal: 10,
+  paddingVertical: 8,
+  fontSize: 16,
+  backgroundColor: "#fafafa",
+  color: "#333",
+  marginTop: 4,
+},
 });
