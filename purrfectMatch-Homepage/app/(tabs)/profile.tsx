@@ -22,9 +22,9 @@ export default function Profile() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [profile, setProfile] = useState<ProfileFirebase | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState(profile?.name || "");
-  const [editedBio, setEditedBio] = useState(profile?.bio || "");
-  const [emailIsPublic, setEmailIsPublic] = useState(profile?.publicEmail ?? false);
+  const [editedName, setEditedName] = useState<string>("");
+  const [editedBio, setEditedBio] = useState<string>("");
+  const [emailIsPublic, setEmailIsPublic] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -60,12 +60,18 @@ export default function Profile() {
         // Fetch the newly created profile
         const finalProfile = await getUserProfileFirebase(user.uid);
         setProfile(finalProfile);
+        setEditedName(finalProfile?.name || "");
+        setEditedBio(finalProfile?.bio || "");
+        setEmailIsPublic(finalProfile?.publicEmail || false);
       } else {
         setCurrentUser(null);
         setIsLoggedIn(false);
         setUserPosts([]);
         setUserPlaydates([]);
         setProfile(null);
+        setEditedName("");
+        setEditedBio("");
+        setEmailIsPublic(false);
         console.log('User logged out');
       }
     });
@@ -360,7 +366,6 @@ export default function Profile() {
           <View style={styles.infoDivider} />
         </View>
 
-
         {/* Bio */}
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Bio</Text>
@@ -396,7 +401,6 @@ export default function Profile() {
           </Text>
         </TouchableOpacity>
       </View>
-
 
       {/* User's Posts Section */}
       <View style={styles.postsSection}>
