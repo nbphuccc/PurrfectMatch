@@ -42,9 +42,10 @@ export default function PostDetail() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const router = useRouter();
 
-  const { id, user, time, petType, category, description, image } = params as Record<string, string | undefined>;
+  const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
 
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
@@ -54,10 +55,13 @@ export default function PostDetail() {
 
   React.useEffect(() => {
     let mounted = true;
+    
     const loadComments = async () => {
-      if (!id) return;
+      if (!id || !authorId) return;
       setLoading(true);
       try {
+        const authorProfile = await getUserProfileFirebase(authorId);
+        setPostAvatarUrl(authorProfile?.avatar);
         console.log('Loading comments from Firebase for post:', id);
         const firebaseComments = await getCommentsFirebase(id);
         if (!mounted) return;
@@ -150,9 +154,26 @@ export default function PostDetail() {
     >
       <View style={styles.outer_container}>
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]}>
-          <Text style={styles.user}>{user ?? 'Unknown'}</Text>
-          <Text style={styles.time}>{displayedTime}</Text>
+          <View style={styles.cardHeader}>
+            {/* Avatar */}
+            <Image
+              source={{
+                uri:
+                  postAvatarUrl ||
+                  'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+              }}
+              style={styles.profilePic}
+            />
+            {/* User info */}
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.user}>{user ?? 'Unknown'}</Text>
+              <Text style={styles.time}>{displayedTime}</Text>
+            </View>
+          </View>
+
+          {/* Meta info */}
           <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
+          {/* Description */}
           <Text style={styles.description}>{description ?? ''}</Text>
           {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
           
@@ -227,6 +248,10 @@ const styles = StyleSheet.create({
     fontSize: 20, 
     fontWeight: '700' 
   },
+
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  profilePic: { width: 50, height: 50, borderRadius: 25},
+
   time: { 
     color: '#666', 
     marginTop: 4 
