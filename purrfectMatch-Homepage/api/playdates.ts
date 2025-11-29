@@ -11,6 +11,7 @@ import {
   doc,
   updateDoc,
   increment,
+  writeBatch,
 } from "firebase/firestore";
 
 // ==================== FIREBASE PLAYDATES ====================
@@ -30,8 +31,8 @@ export interface PlaydatePostFirebase {
   place: string;
   imageUrl?: string;
   createdAt: Date;
-  likes?: number;
-  comments?: number;
+  likes: number;
+  comments: number;
   locationName?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -107,13 +108,30 @@ export async function listPlaydatesByCityFirebase(
   }
 }
 
-export async function deletePlaydateFirebase(id: string) {
+export async function deletePlaydatePostFirebase(postId: string) {
+  if (!postId) throw new Error('postId is required');
+    const batch = writeBatch(db);
   try {
-    await deleteDoc(doc(db, COLLECTION, id));
-    console.log("Playdate deleted from Firebase:", id);
+    // 1. Delete the playdate post itself
+    const postRef = doc(db, 'playdate_posts', postId);
+    batch.delete(postRef);
+
+    // 2. Delete all likes for this post
+    const likesQuery = query(collection(db, 'playdate_likes'), where('postId', '==', postId));
+    const likesSnapshot = await getDocs(likesQuery);
+    likesSnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // 3. Delete all comments for this post
+    const commentsQuery = query(collection(db, 'playdate_comments'), where('postId', '==', postId));
+    const commentsSnapshot = await getDocs(commentsQuery);
+    commentsSnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // Commit batch
+    await batch.commit();
+    console.log(`Playdate post ${postId} and all its likes/comments deleted successfully.`);
     return { success: true };
   } catch (error) {
-    console.error("Error deleting playdate from Firebase:", error);
+    console.error('Failed to delete playdate post:', error);
     throw error;
   }
 }
@@ -189,5 +207,64 @@ export async function getPlaydateCommentsFirebase(
   } catch (error) {
     console.error("Error fetching playdate comments:", error);
     return [];
+  }
+}
+
+// ==================== LIKES (FIREBASE) ====================
+
+export async function toggleLikeFirebase(postId: string, userId: string) {
+  try {
+    const postRef = doc(db, 'playdate_posts', postId);
+    const likesRef = collection(db, 'playdate_likes');
+    
+    // Check if user already liked this post
+    const likeQuery = query(
+      likesRef,
+      where('postId', '==', postId),
+      where('userId', '==', userId)
+    );
+    const likeSnapshot = await getDocs(likeQuery);
+    
+    if (likeSnapshot.empty) {
+      // Add like
+      await addDoc(likesRef, {
+        postId,
+        userId,
+        createdAt: Timestamp.now(),
+      });
+      await updateDoc(postRef, {
+        likes: increment(1),
+      });
+      console.log('Like added to Firebase');
+      return { liked: true };
+    } else {
+      // Remove like
+      const likeDoc = likeSnapshot.docs[0];
+      await deleteDoc(likeDoc.ref);
+      await updateDoc(postRef, {
+        likes: increment(-1),
+      });
+      console.log('Like removed from Firebase');
+      return { liked: false };
+    }
+  } catch (error) {
+    console.error('Error toggling like in Firebase:', error);
+    throw error;
+  }
+}
+
+export async function getLikeStatusFirebase(postId: string, userId: string): Promise<boolean> {
+  try {
+    const likesRef = collection(db, 'playdate_likes');
+    const likeQuery = query(
+      likesRef,
+      where('postId', '==', postId),
+      where('userId', '==', userId)
+    );
+    const likeSnapshot = await getDocs(likeQuery);
+    return !likeSnapshot.empty;
+  } catch (error) {
+    console.error('Error checking like status:', error);
+    return false;
   }
 }

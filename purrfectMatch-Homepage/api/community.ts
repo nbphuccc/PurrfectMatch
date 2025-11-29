@@ -10,7 +10,8 @@ import {
   doc,
   updateDoc,
   increment,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 
 // ==================== FIREBASE FUNCTIONS ====================
@@ -96,6 +97,34 @@ export async function listCommunityPostsFirebase(params?: {
   } catch (error) {
     console.error('Error fetching community posts from Firebase:', error);
     return [];
+  }
+}
+
+export async function deleteCommunityPostFirebase(postId: string) {
+  if (!postId) throw new Error('postId is required');
+    const batch = writeBatch(db);
+  try {
+    // 1. Delete the post itself
+    const postRef = doc(db, 'community_posts', postId);
+    batch.delete(postRef);
+
+    // 2. Delete all likes for this post
+    const likesQuery = query(collection(db, 'community_likes'), where('postId', '==', postId));
+    const likesSnapshot = await getDocs(likesQuery);
+    likesSnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // 3. Delete all comments for this post
+    const commentsQuery = query(collection(db, 'community_comments'), where('postId', '==', postId));
+    const commentsSnapshot = await getDocs(commentsQuery);
+    commentsSnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // Commit batch
+    await batch.commit();
+    console.log(`Post ${postId} and all its likes/comments deleted successfully.`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete community post:', error);
+    throw error;
   }
 }
 

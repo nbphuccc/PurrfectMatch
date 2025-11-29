@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import React from "react";
+import React, { useState } from 'react';
 import {
   Alert,
   Image,
@@ -15,16 +15,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import {
-  createPlaydateFirebase,
-  listPlaydatesFirebase,
-} from "../../api/playdates";
+import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase } from "../../api/playdates";
 import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
 import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
-import { get } from "axios";
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
@@ -114,6 +110,12 @@ export default function PlaydateScreen() {
 
   const dynamicCardWidth = width > 900 ? 800 : width > 600 ? 550 : "100%";
 
+  const [, setTick] = useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const showAlert = (title: string, message: string) => {
     if (typeof window !== "undefined" && (window as any).alert)
       (window as any).alert(`${title}\n\n${message}`);
@@ -193,30 +195,37 @@ export default function PlaydateScreen() {
     }
   };
 
-  const toggleLike = (id: string) => {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              liked: !p.liked,
-              likes: p.liked ? p.likes - 1 : p.likes + 1,
-            }
-          : p
-      )
-    );
-    setFilteredPosts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              liked: !p.liked,
-              likes: p.liked ? p.likes - 1 : p.likes + 1,
-            }
-          : p
-      )
-    );
-  };
+  const toggleLike = async (postId: string) => {
+    const currentUser = getCurrentUser();
+      if (!currentUser) {
+        Alert.alert('Not Logged In', 'Please log in to like posts.');
+        return;
+      }
+  
+      try {
+        // Optimistic update
+        const updatePosts = (prev: CardPost[]) =>
+          prev.map(p =>
+            p.id === postId
+              ? { ...p, liked: !p.liked, likes: p.liked ? Math.max(0, p.likes - 1) : p.likes + 1 }
+              : p
+          );
+  
+        setPosts(updatePosts);
+        setFilteredPosts(updatePosts);
+  
+        // Update Firebase
+        await toggleLikeFirebase(postId, currentUser.uid);
+        
+        // Reload to sync with Firebase
+        await loadPlaydates();
+      } catch (error) {
+        console.error('Error toggling like:', error);
+        Alert.alert('Error', 'Failed to update like. Please try again.');
+        // Revert optimistic update
+        await loadPlaydates();
+      }
+    };
 
   const handleSubmit = async () => {
     const currentUser = getCurrentUser();
@@ -324,26 +333,31 @@ export default function PlaydateScreen() {
   };
 
   const handleSearch = () => {
-    if (!formData.city.trim()) {
-      setFilteredPosts(posts);
-      return;
-    }
-    const city = formData.city.toLowerCase();
-    const results = posts.filter(
-      (post) => post.city.toLowerCase() === city && post.state === selectedState
-    );
+    const city = formData.city.trim().toLowerCase();
+
+    console.log("Searching for city:", city, "and state:", selectedState);
+
+    const results = posts.filter((post) => {
+      const matchesState = post.state === selectedState;
+      const matchesCity = city ? post.city.toLowerCase() === city : true; // if no city, auto-true
+
+      return matchesCity && matchesState;
+    });
+
     setFilteredPosts(results);
   };
-
 
   const loadPlaydates = React.useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       const firebasePosts = await listPlaydatesFirebase();
+      const currentUser = getCurrentUser();
 
       const formattedPosts: CardPost[] = await Promise.all(
         firebasePosts.map(async (post) => {
+          // Check if current user liked this post
+          const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.uid) : false;
           const profile = await getUserProfileFirebase(post.authorId);
           return {
             id: post.id,
@@ -359,7 +373,7 @@ export default function PlaydateScreen() {
             whenAt: post.whenAt,
             likes: post.likes ?? 0,
             comments: post.comments ?? 0,
-            liked: false,
+            liked: liked,
             address: post.address,
             zip: post.zip,
             latitude: post.latitude ?? null,
@@ -378,19 +392,20 @@ export default function PlaydateScreen() {
     }
   }, []);
 
+  /*
+  React.useEffect(() => {
+    if (currentUser) {
+      loadPlaydates();
+    }
+  }, [currentUser, loadPlaydates]);
+  */
+
   useFocusEffect(
-    React.useCallback(() => {
-      let active = true;
-      const run = async () => {
-        if (!active) return;
-        await loadPlaydates();
-      };
-      run();
-      return () => {
-        active = false;
-      };
-    }, [loadPlaydates])
-  );
+      React.useCallback(() => {
+        console.log('Screen focused, refreshing playdates ...');
+        loadPlaydates();
+      }, [loadPlaydates])
+    );
 
   return (
     <KeyboardAvoidingView

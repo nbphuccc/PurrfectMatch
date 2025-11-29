@@ -174,16 +174,18 @@ export function getCurrentUser(): User | null {
 }
 
 export interface ProfileFirebase {
-    id: string;
-    email: string;
-    username: string;
-    name: string;
-    bio: string;
-    avatar: string;
-    publicEmail: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }
+  id: string;
+  email: string;
+  username: string;
+  name: string;
+  bio: string;
+  avatar: string;
+  publicEmail: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type UserProfileUpdates = Partial<Pick<ProfileFirebase, "name" | "bio" | "publicEmail">>;
 
 export async function setUserProfileFirebase(userId: string, profile: {
   email: string;
@@ -236,5 +238,32 @@ export async function getUserProfileFirebase(userId: string) {
   } catch (error) {
     console.error("Error loading user profile:", error);
     return null;
+  }
+}
+
+export async function updateProfileFirebase(userId: string, updates: UserProfileUpdates) {
+  try {
+    const profileRef = doc(db, "profile", userId);
+    const existingSnap = await getDoc(profileRef);
+
+    if (!existingSnap.exists()) {
+      throw new Error("Profile does not exist");
+    }
+
+    const existingProfile = existingSnap.data();
+
+    const updatedProfile = {
+      ...existingProfile,
+      ...updates,
+      updatedAt: Timestamp.now(),
+    };
+
+    await setDoc(profileRef, updatedProfile);
+
+    console.log("Profile updated in Firebase");
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    throw error;
   }
 }
