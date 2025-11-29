@@ -422,27 +422,47 @@ export default function Profile() {
                   <View style={styles.postTypeSection}>
                     <Text style={styles.postTypeTitle}>Community Posts ({userPosts.length})</Text>
                     {userPosts.map((post) => (
-                      <View key={post.id} style={styles.postCard}>
-                        <View style={styles.postHeader}>
-                          <View style={styles.postBadge}>
-                            <Text style={styles.postBadgeText}>{post.category}</Text>
+                      <TouchableOpacity
+                        key={post.id}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          router.push({
+                            pathname: '../communityPost',
+                            params: {
+                              id: post.id,
+                              user: post.username,
+                              authorId: post.authorId,
+                              time: post.createdAt.toISOString() ?? '',
+                              petType: post.petType,
+                              category: post.category,
+                              description: post.description,
+                              image: post.imageUrl ? encodeURIComponent(post.imageUrl) : '',
+                            },
+                          });
+                        }}
+                      >
+                        <View style={styles.postCard}>
+                          <View style={styles.postHeader}>
+                            <View style={styles.postBadge}>
+                              <Text style={styles.postBadgeText}>{post.category}</Text>
+                            </View>
+                            <View style={styles.postBadge}>
+                              <Text style={styles.postBadgeText}>{post.petType}</Text>
+                            </View>
                           </View>
-                          <View style={styles.postBadge}>
-                            <Text style={styles.postBadgeText}>{post.petType}</Text>
+                          <Text style={styles.postDescription}>{post.description}</Text>
+                          {post.imageUrl && (
+                            <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+                          )}
+                          <View style={styles.postFooter}>
+                            <Text style={styles.postStats}>{post.likes} likes</Text>
+                            <Text style={styles.postStats}>{post.comments} comments</Text>
+                            <Text style={styles.postDate}>
+                              {post.createdAt.toLocaleDateString()}
+                            </Text>
                           </View>
                         </View>
-                        <Text style={styles.postDescription}>{post.description}</Text>
-                        {post.imageUrl && (
-                          <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
-                        )}
-                        <View style={styles.postFooter}>
-                          <Text style={styles.postStats}>{post.likes} likes</Text>
-                          <Text style={styles.postStats}>{post.comments} comments</Text>
-                          <Text style={styles.postDate}>
-                            {post.createdAt.toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 )}
@@ -452,29 +472,55 @@ export default function Profile() {
                   <View style={styles.postTypeSection}>
                     <Text style={styles.postTypeTitle}>Playdates ({userPlaydates.length})</Text>
                     {userPlaydates.map((playdate) => (
-                      <View key={playdate.id} style={styles.postCard}>
-                        <Text style={styles.playdateTitle}>{playdate.title}</Text>
-                        <View style={styles.playdateInfo}>
-                          <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
-                          <Text style={styles.playdateLabel}>{playdate.city}, {playdate.state}</Text>
+                      <TouchableOpacity
+                        key={playdate.id}
+                        activeOpacity={0.8}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/playdatePost",
+                            params: {
+                              id: playdate.id,
+                              authorId: playdate.authorId,
+                              title: playdate.title,
+                              user: playdate.username,
+                              time: playdate.createdAt.toLocaleString(),
+                              description: playdate.description,
+                              location: `${playdate.city}, ${playdate.state}`,
+                              date: playdate.whenAt,
+                              image: playdate.imageUrl ? encodeURIComponent(playdate.imageUrl) : "",
+                              address: playdate.address ?? "",
+                              city: playdate.city,
+                              state: playdate.state,
+                              zip: playdate.zip ?? "",
+                            },
+                          })
+                        }
+                      >
+                        <View style={styles.postCard}>
+                          <Text style={styles.playdateTitle}>{playdate.title}</Text>
+                          <View style={styles.playdateInfo}>
+                            <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
+                            <Text style={styles.playdateLabel}>{playdate.city}, {playdate.state}</Text>
+                          </View>
+                          <Text style={styles.postDescription}>{playdate.description}</Text>
+                          <View style={styles.playdateDetails}>
+                            <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
+                            <Text style={styles.playdateDetailText}>{playdate.place}</Text>
+                          </View>
+                          {playdate.imageUrl && (
+                            <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
+                          )}
+                          <View style={styles.postFooter}>
+                            <Text style={styles.postDate}>
+                              {playdate.createdAt.toLocaleDateString()}
+                            </Text>
+                          </View>
                         </View>
-                        <Text style={styles.postDescription}>{playdate.description}</Text>
-                        <View style={styles.playdateDetails}>
-                          <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
-                          <Text style={styles.playdateDetailText}>{playdate.place}</Text>
-                        </View>
-                        {playdate.imageUrl && (
-                          <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
-                        )}
-                        <View style={styles.postFooter}>
-                          <Text style={styles.postDate}>
-                            {playdate.createdAt.toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 )}
+
               </>
             )}
           </>
