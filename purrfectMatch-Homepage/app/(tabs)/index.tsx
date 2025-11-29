@@ -334,8 +334,6 @@ export default function CommunityScreen() {
                         category: post.category,
                         description: post.description,
                         image: post.image ? encodeURIComponent(post.image) : '',
-                        likes: String(post.likes),
-                        comments: String(post.comments),
                       },
                     });
                   }}

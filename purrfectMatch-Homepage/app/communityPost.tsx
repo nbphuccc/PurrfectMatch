@@ -44,7 +44,7 @@ export default function PostDetail() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const router = useRouter();
 
-  const { id, user, time, petType, category, description, image, likes, comments } = params as Record<string, string | undefined>;
+  const { id, user, time, petType, category, description, image } = params as Record<string, string | undefined>;
 
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
