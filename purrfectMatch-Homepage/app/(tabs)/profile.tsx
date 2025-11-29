@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image, Switch } from 'react-native';
-import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
+import { loginFirebase, logoutFirebase, getCurrentUser, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { listCommunityPostsFirebase, CommunityPostFirebase } from '../../api/community';
@@ -10,7 +10,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import {getCurrentUser} from '../../api/firebaseAuth';
 
 export default function Profile() {
   const [email, setEmail] = useState('');
