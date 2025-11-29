@@ -9,6 +9,8 @@ import { listPlaydatesFirebase, PlaydatePostFirebase } from '../../api/playdates
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import {getCurrentUser} from '../../api/firebaseAuth';
 
 export default function Profile() {
   const [email, setEmail] = useState('');
@@ -118,7 +120,7 @@ export default function Profile() {
     }
   };
 
-  const loadUserPosts = async (userId: string) => {
+  const loadUserPosts = React.useCallback(async (userId: string) => {
     setLoadingPosts(true);
     try {
       // Fetch community posts
@@ -126,11 +128,11 @@ export default function Profile() {
       const userCommunityPosts = allCommunityPosts
         .filter(post => post.authorId === userId)
         .map(post => ({ ...post, type: 'community' as const }));
-      
+
       // Fetch playdates
       const allPlaydates = await listPlaydatesFirebase();
       const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
-      
+
       setUserPosts(userCommunityPosts);
       setUserPlaydates(userPlaydatePosts);
       console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
@@ -139,7 +141,15 @@ export default function Profile() {
     } finally {
       setLoadingPosts(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('Screen focused, refreshing posts...');
+      const currentUser = getCurrentUser();
+      loadUserPosts(currentUser?.uid || "");
+    }, [loadUserPosts])
+  );
 
   const handleLogIn = async () => {
     setErrorMessage(null);
