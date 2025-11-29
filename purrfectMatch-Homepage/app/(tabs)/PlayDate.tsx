@@ -21,7 +21,6 @@ import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
 import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
-//import { AuthContext } from '../../AuthContext';
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
@@ -108,7 +107,6 @@ export default function PlaydateScreen() {
   const [uploadingImage, setUploadingImage] = React.useState(false);
   const [locationQuery, setLocationQuery] = React.useState('');
   const [selectedLocation, setSelectedLocation] = React.useState<SelectedLocation | null>(null);
-  //const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
 
   const dynamicCardWidth = width > 900 ? 800 : width > 600 ? 550 : "100%";
 
@@ -335,17 +333,19 @@ export default function PlaydateScreen() {
   };
 
   const handleSearch = () => {
-    if (!formData.city.trim()) {
-      setFilteredPosts(posts);
-      return;
-    }
-    const city = formData.city.toLowerCase();
-    const results = posts.filter(
-      (post) => post.city.toLowerCase() === city && post.state === selectedState
-    );
+    const city = formData.city.trim().toLowerCase();
+
+    console.log("Searching for city:", city, "and state:", selectedState);
+
+    const results = posts.filter((post) => {
+      const matchesState = post.state === selectedState;
+      const matchesCity = city ? post.city.toLowerCase() === city : true; // if no city, auto-true
+
+      return matchesCity && matchesState;
+    });
+
     setFilteredPosts(results);
   };
-
 
   const loadPlaydates = React.useCallback(async () => {
     setLoading(true);
