@@ -382,13 +382,12 @@ export default function CommunityScreen() {
                         params: {
                           id: post.firebaseId,
                           user: post.user,
+                          authorId: post.authorId,
                           time: post.created_at ?? '',
                           petType: post.petType,
                           category: post.category,
                           description: post.description,
                           image: post.image ? encodeURIComponent(post.image) : '',
-                          likes: String(post.likes),
-                          comments: String(post.comments),
                         },
                       });
                     }}
