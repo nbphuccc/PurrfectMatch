@@ -521,6 +521,8 @@ export default function Profile() {
                             <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
                           )}
                           <View style={styles.postFooter}>
+                            <Text style={styles.postStats}>{playdate.likes} likes</Text>
+                            <Text style={styles.postStats}>{playdate.comments} comments</Text>
                             <Text style={styles.postDate}>
                               {playdate.createdAt.toLocaleDateString()}
                             </Text>
