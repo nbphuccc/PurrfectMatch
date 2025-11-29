@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image, Switch } from 'react-native';
-import { loginFirebase, logoutFirebase, getCurrentUser, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image, Switch, Modal } from 'react-native';
+import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
-import { listCommunityPostsFirebase, CommunityPostFirebase } from '../../api/community';
-import { listPlaydatesFirebase, PlaydatePostFirebase } from '../../api/playdates';
+import { listCommunityPostsFirebase, CommunityPostFirebase, deleteCommunityPostFirebase } from '../../api/community';
+import { listPlaydatesFirebase, PlaydatePostFirebase, deletePlaydatePostFirebase } from '../../api/playdates';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -26,6 +26,8 @@ export default function Profile() {
   const [editedName, setEditedName] = useState<string>("");
   const [editedBio, setEditedBio] = useState<string>("");
   const [emailIsPublic, setEmailIsPublic] = useState<boolean>(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<{postId: string; type: 'community' | 'playdate'} | null>(null);
 
   const router = useRouter();
 
@@ -145,8 +147,7 @@ export default function Profile() {
   useFocusEffect(
     React.useCallback(() => {
       console.log('Screen focused, refreshing posts...');
-      const currentUser = getCurrentUser();
-      loadUserPosts(currentUser?.uid || "");
+      loadUserPosts(currentUser?.id || "");
     }, [loadUserPosts])
   );
 
@@ -215,6 +216,51 @@ export default function Profile() {
     } catch (e) {
       console.error("Failed to update profile:", e);
     }
+  };
+
+  const openMenu = (postId: string, type: 'community' | 'playdate') => {
+    setSelectedPost({postId, type});
+    setMenuVisible(true);
+  };
+
+  const closeMenu = () => {
+    setSelectedPost(null);
+    setMenuVisible(false);
+  };
+
+  const handleMenuOption = async (option: "Edit" | "Delete" | "Hide") => {
+    if (!selectedPost) return;
+    console.log(`${option} clicked for post: ${selectedPost.postId}`);
+
+    if (option === "Delete") {
+      // Map post types to delete functions
+      const deleteActions: Record<string, (id: string) => Promise<any>> = {
+        community: deleteCommunityPostFirebase,
+        playdate: deletePlaydatePostFirebase,
+      };
+
+      const deleteFn = deleteActions[selectedPost.type];
+      if (!deleteFn) {
+        Alert.alert("Error", "Unknown post type.");
+        return;
+      }
+
+      try {
+        const response = await deleteFn(selectedPost.postId);
+
+        if (response.success) {
+          loadUserPosts(currentUser?.id || "");
+          Alert.alert("Success", "Post deleted successfully.");
+        } else {
+          Alert.alert("Error", "Failed to delete post.");
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to delete post.");
+      }
+    }
+
+    closeMenu();
   };
 
   if (!isLoggedIn) {
@@ -426,10 +472,11 @@ export default function Profile() {
               </View>
             ) : (
               <>
-                {/* Community Posts */}
                 {userPosts.length > 0 && (
                   <View style={styles.postTypeSection}>
-                    <Text style={styles.postTypeTitle}>Community Posts ({userPosts.length})</Text>
+                    <Text style={styles.postTypeTitle}>
+                      Community Posts ({userPosts.length})
+                    </Text>
                     {userPosts.map((post) => (
                       <TouchableOpacity
                         key={post.id}
@@ -451,6 +498,19 @@ export default function Profile() {
                         }}
                       >
                         <View style={styles.postCard}>
+                          {/* Top-right menu */}
+                          <TouchableOpacity
+                            style={styles.postMenuButton}
+                            onPress={(e) => {
+                              e.stopPropagation(); // prevents parent onPress
+                              // Show options: Edit, Delete, Hide
+                              openMenu(post.id, 'community');
+                              // You could set state to show a modal/action sheet here
+                            }}
+                          >
+                            <Text style={styles.postMenuText}>…</Text>
+                          </TouchableOpacity>
+
                           <View style={styles.postHeader}>
                             <View style={styles.postBadge}>
                               <Text style={styles.postBadgeText}>{post.category}</Text>
@@ -473,6 +533,26 @@ export default function Profile() {
                         </View>
                       </TouchableOpacity>
                     ))}
+                    {/* Modal for menu options */}
+                    <Modal
+                      visible={menuVisible}
+                      transparent
+                      onRequestClose={closeMenu}
+                    >
+                      <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
+                        <View style={styles.modalContent}>
+                          {["Edit", "Delete", "Hide"].map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              onPress={() => handleMenuOption(option as "Edit" | "Delete" | "Hide")}
+                              style={styles.modalOption}
+                            >
+                              <Text style={styles.modalOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
                   </View>
                 )}
 
@@ -506,6 +586,17 @@ export default function Profile() {
                         }
                       >
                         <View style={styles.postCard}>
+                          <TouchableOpacity
+                            style={styles.postMenuButton}
+                            onPress={(e) => {
+                              e.stopPropagation(); // prevents parent onPress
+                              // Show options: Edit, Delete, Hide
+                              openMenu(playdate.id, 'playdate');
+                              // You could set state to show a modal/action sheet here
+                            }}
+                          >
+                            <Text style={styles.postMenuText}>…</Text>
+                          </TouchableOpacity>
                           <Text style={styles.playdateTitle}>{playdate.title}</Text>
                           <View style={styles.playdateInfo}>
                             <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
@@ -529,6 +620,26 @@ export default function Profile() {
                         </View>
                       </TouchableOpacity>
                     ))}
+                    {/* Modal for menu options */}
+                    <Modal
+                      visible={menuVisible}
+                      transparent
+                      onRequestClose={closeMenu}
+                    >
+                      <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
+                        <View style={styles.modalContent}>
+                          {["Edit", "Delete", "Hide"].map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              onPress={() => handleMenuOption(option as "Edit" | "Delete" | "Hide")}
+                              style={styles.modalOption}
+                            >
+                              <Text style={styles.modalOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
                   </View>
                 )}
 
@@ -881,4 +992,22 @@ inputField: {
   color: "#333",
   marginTop: 4,
 },
+
+postMenuButton: {
+  position: 'absolute',
+  right: 8,
+  zIndex: 10,
+  padding: 4,
+},
+
+postMenuText: {
+  fontSize: 18,
+  fontWeight: '600',
+},
+
+modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
+modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
+modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+modalOptionText: { fontSize: 16 },
+
 });

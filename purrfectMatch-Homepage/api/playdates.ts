@@ -11,6 +11,7 @@ import {
   doc,
   updateDoc,
   increment,
+  writeBatch,
 } from "firebase/firestore";
 
 // ==================== FIREBASE PLAYDATES ====================
@@ -107,13 +108,30 @@ export async function listPlaydatesByCityFirebase(
   }
 }
 
-export async function deletePlaydateFirebase(id: string) {
+export async function deletePlaydatePostFirebase(postId: string) {
+  if (!postId) throw new Error('postId is required');
+    const batch = writeBatch(db);
   try {
-    await deleteDoc(doc(db, COLLECTION, id));
-    console.log("Playdate deleted from Firebase:", id);
+    // 1. Delete the playdate post itself
+    const postRef = doc(db, 'playdate_posts', postId);
+    batch.delete(postRef);
+
+    // 2. Delete all likes for this post
+    const likesQuery = query(collection(db, 'playdate_likes'), where('postId', '==', postId));
+    const likesSnapshot = await getDocs(likesQuery);
+    likesSnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // 3. Delete all comments for this post
+    const commentsQuery = query(collection(db, 'playdate_comments'), where('postId', '==', postId));
+    const commentsSnapshot = await getDocs(commentsQuery);
+    commentsSnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+
+    // Commit batch
+    await batch.commit();
+    console.log(`Playdate post ${postId} and all its likes/comments deleted successfully.`);
     return { success: true };
   } catch (error) {
-    console.error("Error deleting playdate from Firebase:", error);
+    console.error('Failed to delete playdate post:', error);
     throw error;
   }
 }
