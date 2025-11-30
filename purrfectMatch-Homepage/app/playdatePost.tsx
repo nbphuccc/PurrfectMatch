@@ -11,7 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getPlaydateCommentsFirebase,
@@ -63,6 +63,8 @@ export default function PlaydatePost() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const router = useRouter();
 
   useEffect(() => {
     const fetchAvatar = async () => {
@@ -116,7 +118,7 @@ export default function PlaydatePost() {
         const profile = await getUserProfileFirebase(comment.authorId);
         return {
           ...comment,
-          avatar: profile?.avatar || "", // add avatar field
+          avatar: profile?.avatar || "",
         };
       })
     );
@@ -187,12 +189,16 @@ export default function PlaydatePost() {
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Image
-              source={{ uri: postAvatarUrl || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
-              style={styles.profilePic}
-            />
+            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+              <Image
+                source={{ uri: postAvatarUrl || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                style={styles.profilePic}
+              />
+            </TouchableOpacity>
             <View>
-              <Text style={styles.username}>{username}</Text>
+              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+                <Text style={styles.username}>{username}</Text>
+              </TouchableOpacity>
               <Text style={styles.time}>{time}</Text>
             </View>
           </View>
@@ -266,13 +272,17 @@ export default function PlaydatePost() {
           ) : (
             comments.map((c) => (
               <View key={c.id} style={styles.commentItem}>
-                <Image
-                  source={{ uri: c.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
-                  style={styles.commentProfile}
-                />
+                <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: c.authorId } })}>
+                  <Image
+                    source={{ uri: c.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                    style={styles.commentProfile}
+                  />
+                </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", gap: 6 }}>
-                    <Text style={styles.commentUsername}>{c.username}</Text>
+                    <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: c.authorId } })}>
+                      <Text style={styles.commentUsername}>{c.username}</Text>
+                    </TouchableOpacity>
                     <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
                   </View>
                   <Text style={styles.commentContent}>{c.content}</Text>
