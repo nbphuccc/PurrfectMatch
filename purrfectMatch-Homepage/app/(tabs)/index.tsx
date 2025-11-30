@@ -281,6 +281,14 @@ export default function CommunityScreen() {
     }
   };
 
+  const goToProfile = (authorId: string) => (e: any) => {
+    e.stopPropagation();
+    router.push({
+      pathname: "../userProfile",
+      params: { authorId },
+    });
+  };
+
   return (
     <KeyboardAvoidingView
     style={{ flex: 1 }}
@@ -339,12 +347,15 @@ export default function CommunityScreen() {
                   }}
                 >
                   <View style={styles.cardHeader}>
-                    <Image
-                      source={{ uri: post.avatar }}
-                      style={styles.profilePic}
-                    />
+                    <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
+                      <Image source={{ uri: post.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }} style={styles.profilePic} />
+                    </TouchableOpacity>
+
                     <View>
-                      <Text style={styles.username}>{post.user}</Text>
+                      <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
+                        <Text style={styles.username}>{post.user}</Text>
+                      </TouchableOpacity>
+
                       <Text style={styles.time}>{formatTimeValue(post.created_at)}</Text>
                     </View>
                   </View>
