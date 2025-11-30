@@ -31,6 +31,29 @@ export default function Profile() {
 
   const router = useRouter();
 
+  const loadUserPosts = React.useCallback(async (userId: string) => {
+    setLoadingPosts(true);
+    try {
+      // Fetch community posts
+      const allCommunityPosts = await listCommunityPostsFirebase();
+      const userCommunityPosts = allCommunityPosts
+        .filter(post => post.authorId === userId)
+        .map(post => ({ ...post, type: 'community' as const }));
+
+      // Fetch playdates
+      const allPlaydates = await listPlaydatesFirebase();
+      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
+
+      setUserPosts(userCommunityPosts);
+      setUserPlaydates(userPlaydatePosts);
+      console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
+    } catch (error) {
+      console.error('Error loading user posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -79,7 +102,7 @@ export default function Profile() {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [loadUserPosts]);
 
   
   const handlePickImage = async () => {
@@ -121,34 +144,11 @@ export default function Profile() {
     }
   };
 
-  const loadUserPosts = React.useCallback(async (userId: string) => {
-    setLoadingPosts(true);
-    try {
-      // Fetch community posts
-      const allCommunityPosts = await listCommunityPostsFirebase();
-      const userCommunityPosts = allCommunityPosts
-        .filter(post => post.authorId === userId)
-        .map(post => ({ ...post, type: 'community' as const }));
-
-      // Fetch playdates
-      const allPlaydates = await listPlaydatesFirebase();
-      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
-
-      setUserPosts(userCommunityPosts);
-      setUserPlaydates(userPlaydatePosts);
-      console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
-    } catch (error) {
-      console.error('Error loading user posts:', error);
-    } finally {
-      setLoadingPosts(false);
-    }
-  }, []);
-
   useFocusEffect(
     React.useCallback(() => {
       console.log('Screen focused, refreshing posts...');
       loadUserPosts(currentUser?.id || "");
-    }, [loadUserPosts])
+    }, [loadUserPosts, currentUser?.id])
   );
 
   const handleLogIn = async () => {
