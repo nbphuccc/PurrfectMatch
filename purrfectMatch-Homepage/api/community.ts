@@ -131,6 +131,7 @@ export async function deleteCommunityPostFirebase(postId: string) {
 // ==================== COMMENTS (FIREBASE) ====================
 
 export interface CommentFirebase {
+  id: string
   postId: string;
   authorId: string;
   username: string;
@@ -138,7 +139,7 @@ export interface CommentFirebase {
   createdAt: Date;
 }
 
-export async function getCommentsFirebase(postId: string): Promise<(CommentFirebase & { id: string })[]> {
+export async function getCommentsFirebase(postId: string): Promise<CommentFirebase[]> {
   try {
     const commentsRef = collection(db, 'community_comments');
     const q = query(
@@ -158,7 +159,7 @@ export async function getCommentsFirebase(postId: string): Promise<(CommentFireb
         content: data.content,
         createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // ⭐ Fallback
       };
-    }) as (CommentFirebase & { id: string })[];
+    });
     
     console.log(`Fetched ${comments.length} comments from Firebase`);
     return comments;
