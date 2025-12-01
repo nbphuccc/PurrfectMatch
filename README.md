@@ -94,31 +94,31 @@ When reporting a bug, include:
 
 **Bug Report Template:**
 ```
-**Title:** [Bug] Short description of the issue
+Title: [Bug] Short description of the issue
 
-**Description:**
+Description:
 Briefly describe what went wrong and how it affects the app.
 
-**Steps to Reproduce:**
+Steps to Reproduce:
 1. Go to [...]
 2. Tap [...]
 3. Observe [...]
 
-**Expected Behavior:**
+Expected Behavior:
 Describe what you expected to happen.
 
-**Actual Behavior:**
+Actual Behavior:
 Describe what actually happens instead.
 
-**Environment:**
+Environment:
 - Device: (e.g., iPhone 13 / Samsung S22)
 - OS Version: (e.g., iOS 17.2 / Android 14)
 - Network: (Wi-Fi / Cellular)
 
-**Screenshots or Logs:**
+Screenshots or Logs:
 If applicable, attach images, console errors, or screenshots.
 
-**Additional Notes:**
+Additional Notes:
 Any other context that might help identify the issue.
 
 ```
