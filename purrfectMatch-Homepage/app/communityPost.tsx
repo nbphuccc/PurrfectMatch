@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { getCommentsFirebase, addCommentFirebase } from '../api/community';
+import { getCommentsFirebase, addCommentFirebase, CommentFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
@@ -35,18 +34,23 @@ const formatTimeValue = (v?: string | null) => {
   return formatRelativeTime(v);
 };
 
+export type CommentWithAvatar = CommentFirebase & {
+  avatar: string;
+};
+
 export default function PostDetail() {
   const params = useLocalSearchParams();
   const [comment, setComment] = useState('');
-  const [commentsList, setCommentsList] = useState<Array<{ id: number; user: string; avatar?: string; text: string; created_at: string }>>([]);
+  const [commentsList, setCommentsList] = useState<CommentWithAvatar[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const router = useRouter();
 
-  const { id, user, time, petType, category, description, image, likes, comments } = params as Record<string, string | undefined>;
+  const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
 
-  const [tick, setTick] = React.useState(0);
+  const [, setTick] = React.useState(0);
   React.useEffect(() => {
     const idt = setInterval(() => setTick(t => t + 1), 30 * 1000);
     return () => clearInterval(idt);
@@ -54,10 +58,13 @@ export default function PostDetail() {
 
   React.useEffect(() => {
     let mounted = true;
+    
     const loadComments = async () => {
-      if (!id) return;
+      if (!id || !authorId) return;
       setLoading(true);
       try {
+        const authorProfile = await getUserProfileFirebase(authorId);
+        setPostAvatarUrl(authorProfile?.avatar);
         console.log('Loading comments from Firebase for post:', id);
         const firebaseComments = await getCommentsFirebase(id);
         if (!mounted) return;
@@ -67,15 +74,17 @@ export default function PostDetail() {
           setAvatarUrl(userProfile?.avatar);
         }
         const formatted = await Promise.all(
-          firebaseComments.map(async (c, idx) => {
+          firebaseComments.map(async (c) => {
             const profile = await getUserProfileFirebase(c.authorId);
 
             return {
-              id: idx + 1,
-              user: c.username,
+              id: c.id,
+              postId: c.postId,
+              authorId: c.authorId,
+              username: c.username,
+              content: c.content,
+              createdAt: c.createdAt,
               avatar: profile?.avatar,
-              text: c.content,
-              created_at: c.createdAt.toISOString(),
             };
           })
         );
@@ -90,7 +99,7 @@ export default function PostDetail() {
     };
     loadComments();
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, authorId]);
 
   const displayedTime = formatTimeValue(time);
 
@@ -120,14 +129,16 @@ export default function PostDetail() {
       
       const firebaseComments = await getCommentsFirebase(id);
       const formatted = await Promise.all(
-          firebaseComments.map(async (c, idx) => {
+          firebaseComments.map(async (c) => {
             const profile = await getUserProfileFirebase(c.authorId);
             return {
-              id: idx + 1,
-              user: c.username,
+              id: c.id,
+              postId: c.postId,
+              authorId: c.authorId,
+              username: c.username,
+              content: c.content,
+              createdAt: c.createdAt,
               avatar: profile?.avatar,
-              text: c.content,
-              created_at: c.createdAt.toISOString(),
             };
           })
         );
@@ -150,9 +161,30 @@ export default function PostDetail() {
     >
       <View style={styles.outer_container}>
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]}>
-          <Text style={styles.user}>{user ?? 'Unknown'}</Text>
-          <Text style={styles.time}>{displayedTime}</Text>
+          <View style={styles.cardHeader}>
+            {/* Avatar */}
+            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+              <Image
+                source={{
+                  uri:
+                    postAvatarUrl ||
+                    'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+                }}
+                style={styles.profilePic}
+              />
+            </TouchableOpacity>
+            {/* User info */}
+            <View style={{ marginLeft: 12 }}>
+              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+                <Text style={styles.user}>{user ?? 'Unknown'}</Text>
+              </TouchableOpacity>
+              <Text style={styles.time}>{displayedTime}</Text>
+            </View>
+          </View>
+
+          {/* Meta info */}
           <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
+          {/* Description */}
           <Text style={styles.description}>{description ?? ''}</Text>
           {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
           
@@ -194,13 +226,24 @@ export default function PostDetail() {
               ) : (
                 commentsList.map(c => (
                   <View key={c.id} style={styles.commentRow}>
-                    <Image source={{ uri: c.avatar }} style={styles.commentAvatar} />
+                    <TouchableOpacity
+                      onPress={() => router.push({ pathname: "/userProfile", params: { authorId: c.authorId } })}
+                    >
+                      <Image source={{ uri: c.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }} style={styles.commentAvatar} />
+                    </TouchableOpacity>
+
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ fontWeight: '700', marginRight: 8 }}>{c.user}</Text>
-                        <Text style={{ color: '#666', fontSize: 12 }}>{formatTimeValue(c.created_at)}</Text>
+                        <TouchableOpacity
+                          onPress={() => router.push({ pathname: "/userProfile", params: { authorId: c.authorId } })}
+                        >
+                          <Text style={{ fontWeight: '700', marginRight: 8 }}>{c.username}</Text>
+                        </TouchableOpacity>
+                        <Text style={{ color: '#666', fontSize: 12 }}>
+                          {formatTimeValue(c.createdAt.toISOString())}
+                        </Text>
                       </View>
-                      <Text style={{ marginTop: 4 }}>{c.text}</Text>
+                      <Text style={{ marginTop: 4 }}>{c.content}</Text>
                     </View>
                   </View>
                 ))
@@ -227,6 +270,10 @@ const styles = StyleSheet.create({
     fontSize: 20, 
     fontWeight: '700' 
   },
+
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  profilePic: { width: 50, height: 50, borderRadius: 25},
+
   time: { 
     color: '#666', 
     marginTop: 4 

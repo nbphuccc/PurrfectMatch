@@ -52,7 +52,7 @@ export default function CommunityScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchPetType, setSearchPetType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
+  //const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
   const { width } = useWindowDimensions();
 
   const formatRelativeTime = (iso: string) => {
@@ -91,6 +91,7 @@ export default function CommunityScreen() {
     return () => clearInterval(id);
   }, []);
 
+  /*
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -107,6 +108,7 @@ export default function CommunityScreen() {
 
     return unsubscribe;
   }, []);
+  */
 
   const loadPosts = React.useCallback(async () => {
     setLoading(true);
@@ -114,10 +116,11 @@ export default function CommunityScreen() {
     try {
       console.log('Loading community posts from Firebase...');
       const firebasePosts = await listCommunityPostsFirebase();
+      const currentUser = getCurrentUser();
       
       const formattedPosts = await Promise.all(firebasePosts.map(async (post, index) => {
         // Check if current user liked this post
-        const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.id) : false;
+        const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.uid) : false;
         // Fetch author profile to get avatar
         const profile = await getUserProfileFirebase(post.authorId);
         
@@ -147,7 +150,7 @@ export default function CommunityScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, []);
 
   React.useEffect(() => {
     loadPosts();
@@ -181,6 +184,8 @@ export default function CommunityScreen() {
       showAlert('Missing Description', 'Please provide a description for your post.');
       return;
     }
+
+    const currentUser = getCurrentUser();
   
     if (!currentUser) {
       showAlert('Not Logged In', 'Please log in to create a post.');
@@ -210,8 +215,8 @@ export default function CommunityScreen() {
       console.log('Creating community post in Firebase...');
       
       await createCommunityPostFirebase({
-        authorId: currentUser.id,
-        username: currentUser.username,
+        authorId: currentUser.uid,
+        username: currentUser.displayName || 'User',
         petType,
         category,
         description: trimmedDesc,
@@ -245,6 +250,7 @@ export default function CommunityScreen() {
   const router = useRouter();
 
   const toggleLike = async (postId: number, firebaseId: string) => {
+    const currentUser = getCurrentUser();
     if (!currentUser) {
       Alert.alert('Not Logged In', 'Please log in to like posts.');
       return;
@@ -263,7 +269,7 @@ export default function CommunityScreen() {
       setFilteredPosts(updatePosts);
 
       // Update Firebase
-      await toggleLikeFirebase(firebaseId, currentUser.id);
+      await toggleLikeFirebase(firebaseId, currentUser.uid);
       
       // Reload to sync with Firebase
       await loadPosts();
@@ -273,6 +279,14 @@ export default function CommunityScreen() {
       // Revert optimistic update
       await loadPosts();
     }
+  };
+
+  const goToProfile = (authorId: string) => (e: any) => {
+    e.stopPropagation();
+    router.push({
+      pathname: "../userProfile",
+      params: { authorId },
+    });
   };
 
   return (
@@ -328,19 +342,20 @@ export default function CommunityScreen() {
                         category: post.category,
                         description: post.description,
                         image: post.image ? encodeURIComponent(post.image) : '',
-                        likes: String(post.likes),
-                        comments: String(post.comments),
                       },
                     });
                   }}
                 >
                   <View style={styles.cardHeader}>
-                    <Image
-                      source={{ uri: post.avatar }}
-                      style={styles.profilePic}
-                    />
+                    <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
+                      <Image source={{ uri: post.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }} style={styles.profilePic} />
+                    </TouchableOpacity>
+
                     <View>
-                      <Text style={styles.username}>{post.user}</Text>
+                      <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
+                        <Text style={styles.username}>{post.user}</Text>
+                      </TouchableOpacity>
+
                       <Text style={styles.time}>{formatTimeValue(post.created_at)}</Text>
                     </View>
                   </View>
@@ -378,13 +393,12 @@ export default function CommunityScreen() {
                         params: {
                           id: post.firebaseId,
                           user: post.user,
+                          authorId: post.authorId,
                           time: post.created_at ?? '',
                           petType: post.petType,
                           category: post.category,
                           description: post.description,
                           image: post.image ? encodeURIComponent(post.image) : '',
-                          likes: String(post.likes),
-                          comments: String(post.comments),
                         },
                       });
                     }}

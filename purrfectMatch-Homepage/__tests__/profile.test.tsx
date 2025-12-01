@@ -1,11 +1,15 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
-
+import { NavigationContainer } from '@react-navigation/native';
 import Profile from '../app/(tabs)/profile';
 
 describe('<Profile />', () => {
   test('Text renders correctly on profile page', () => {
-    const { getByText } = render(<Profile />);
+    const { getByText } = render(
+      <NavigationContainer>
+        <Profile />
+      </NavigationContainer>
+    );
 
     getByText('Login');
     getByText('Email');

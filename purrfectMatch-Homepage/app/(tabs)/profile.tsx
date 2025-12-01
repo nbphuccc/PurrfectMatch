@@ -1,14 +1,15 @@
 import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image } from 'react-native';
-import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase} from '../../api/firebaseAuth';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image, Switch, Modal } from 'react-native';
+import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
-import { listCommunityPostsFirebase, CommunityPostFirebase } from '../../api/community';
-import { listPlaydatesFirebase, PlaydatePostFirebase } from '../../api/playdates';
+import { listCommunityPostsFirebase, CommunityPostFirebase, deleteCommunityPostFirebase } from '../../api/community';
+import { listPlaydatesFirebase, PlaydatePostFirebase, deletePlaydatePostFirebase } from '../../api/playdates';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function Profile() {
   const [email, setEmail] = useState('');
@@ -21,8 +22,37 @@ export default function Profile() {
   const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [profile, setProfile] = useState<ProfileFirebase | null>(null);
-  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState<string>("");
+  const [editedBio, setEditedBio] = useState<string>("");
+  const [emailIsPublic, setEmailIsPublic] = useState<boolean>(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<{postId: string; type: 'community' | 'playdate'} | null>(null);
+
   const router = useRouter();
+
+  const loadUserPosts = React.useCallback(async (userId: string) => {
+    setLoadingPosts(true);
+    try {
+      // Fetch community posts
+      const allCommunityPosts = await listCommunityPostsFirebase();
+      const userCommunityPosts = allCommunityPosts
+        .filter(post => post.authorId === userId)
+        .map(post => ({ ...post, type: 'community' as const }));
+
+      // Fetch playdates
+      const allPlaydates = await listPlaydatesFirebase();
+      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
+
+      setUserPosts(userCommunityPosts);
+      setUserPlaydates(userPlaydatePosts);
+      console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
+    } catch (error) {
+      console.error('Error loading user posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -56,17 +86,23 @@ export default function Profile() {
         // Fetch the newly created profile
         const finalProfile = await getUserProfileFirebase(user.uid);
         setProfile(finalProfile);
+        setEditedName(finalProfile?.name || "");
+        setEditedBio(finalProfile?.bio || "");
+        setEmailIsPublic(finalProfile?.publicEmail || false);
       } else {
         setCurrentUser(null);
         setIsLoggedIn(false);
         setUserPosts([]);
         setUserPlaydates([]);
         setProfile(null);
+        setEditedName("");
+        setEditedBio("");
+        setEmailIsPublic(false);
         console.log('User logged out');
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [loadUserPosts]);
 
   
   const handlePickImage = async () => {
@@ -87,25 +123,20 @@ export default function Profile() {
       const asset = result.assets[0];
       const localUri = asset.uri;
 
-      // 1️⃣ Convert to blob for upload
       const response = await fetch(localUri);
       const blob = await response.blob();
 
-      // 2️⃣ Upload to Firebase Storage
       const storage = getStorage();
       const storageRef = ref(storage, `avatars/${currentUser?.id}.jpg`);
       await uploadBytes(storageRef, blob);
 
-      // 3️⃣ Get download URL
       const downloadURL = await getDownloadURL(storageRef);
 
-      // 4️⃣ Update Firestore profile
       await setUserProfileFirebase(currentUser!.id, {
         ...profile!,
         avatar: downloadURL,
       });
 
-      // ✅ Update local state to rerender immediately
       setProfile({
         ...profile!,
         avatar: downloadURL,
@@ -113,28 +144,12 @@ export default function Profile() {
     }
   };
 
-  const loadUserPosts = async (userId: string) => {
-    setLoadingPosts(true);
-    try {
-      // Fetch community posts
-      const allCommunityPosts = await listCommunityPostsFirebase();
-      const userCommunityPosts = allCommunityPosts
-        .filter(post => post.authorId === userId)
-        .map(post => ({ ...post, type: 'community' as const }));
-      
-      // Fetch playdates
-      const allPlaydates = await listPlaydatesFirebase();
-      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
-      
-      setUserPosts(userCommunityPosts);
-      setUserPlaydates(userPlaydatePosts);
-      console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
-    } catch (error) {
-      console.error('Error loading user posts:', error);
-    } finally {
-      setLoadingPosts(false);
-    }
-  };
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('Screen focused, refreshing posts...');
+      loadUserPosts(currentUser?.id || "");
+    }, [loadUserPosts, currentUser?.id])
+  );
 
   const handleLogIn = async () => {
     setErrorMessage(null);
@@ -186,6 +201,66 @@ export default function Profile() {
     } else {
       Alert.alert('Logged out', 'You have been signed out.');
     }
+  };
+
+  const handleSaveProfile = async (name: string, bio: string) => {
+    try {
+      if (!currentUser) return;
+      await updateProfileFirebase(currentUser.id, {
+        name: name.trim(),
+        bio: bio.trim(),
+        publicEmail: emailIsPublic,
+      });
+      setProfile(prev => prev ? { ...prev, name, bio } : prev);
+      console.log("Profile saved!");
+    } catch (e) {
+      console.error("Failed to update profile:", e);
+    }
+  };
+
+  const openMenu = (postId: string, type: 'community' | 'playdate') => {
+    setSelectedPost({postId, type});
+    setMenuVisible(true);
+  };
+
+  const closeMenu = () => {
+    setSelectedPost(null);
+    setMenuVisible(false);
+  };
+
+  const handleMenuOption = async (option: "Edit" | "Delete" | "Hide") => {
+    if (!selectedPost) return;
+    console.log(`${option} clicked for post: ${selectedPost.postId}`);
+
+    if (option === "Delete") {
+      // Map post types to delete functions
+      const deleteActions: Record<string, (id: string) => Promise<any>> = {
+        community: deleteCommunityPostFirebase,
+        playdate: deletePlaydatePostFirebase,
+      };
+
+      const deleteFn = deleteActions[selectedPost.type];
+      if (!deleteFn) {
+        Alert.alert("Error", "Unknown post type.");
+        return;
+      }
+
+      try {
+        const response = await deleteFn(selectedPost.postId);
+
+        if (response.success) {
+          loadUserPosts(currentUser?.id || "");
+          Alert.alert("Success", "Post deleted successfully.");
+        } else {
+          Alert.alert("Error", "Failed to delete post.");
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to delete post.");
+      }
+    }
+
+    closeMenu();
   };
 
   if (!isLoggedIn) {
@@ -260,7 +335,7 @@ export default function Profile() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
           <TouchableOpacity onPress={handlePickImage}>
@@ -300,24 +375,87 @@ export default function Profile() {
         </TouchableOpacity>
       </View>
 
-      {/* Name */}
-      {profile?.name !== undefined && profile?.name !== null ? (
-        <Text style={styles.name}>
-          {profile.name !== "" ? profile.name : "Name not set"}
-        </Text>
-      ) : null}
+      <View style={styles.profileInfoBox}>
+        {/* Name */}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Name</Text>
 
-      {/* Email - only show if publicEmail */}
-      {profile?.publicEmail ? (
-        <Text style={styles.email}>{currentUser?.email}</Text>
-      ) : (
-        <Text style={styles.emailPrivate}>Email is private</Text>
-      )}
+          {isEditing ? (
+            <TextInput
+              style={styles.inputField}
+              value={editedName}
+              onChangeText={setEditedName}
+              placeholder="Enter your name"
+            />
+          ) : (
+            <Text style={styles.infoValue}>
+              {profile?.name ? profile.name : "Not set"}
+            </Text>
+          )}
+          <View style={styles.infoDivider} />
+        </View>
 
-      {/* Bio */}
-      <Text style={styles.bio}>
-        {profile?.bio && profile.bio !== "" ? profile.bio : "Bio not set"}
-      </Text>
+        {/* Email */}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Email</Text>
+
+          {isEditing ? (
+            // Show toggle when editing
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Text style={styles.infoValue}>
+                {emailIsPublic ? "Public" : "Private"}
+              </Text>
+
+              <Switch
+                value={emailIsPublic}
+                onValueChange={(value: boolean) => setEmailIsPublic(value)}
+              />
+            </View>
+          ) : (
+            // Normal view mode
+            <Text style={styles.infoValue}>
+              {emailIsPublic ? "Public" : "Private"}
+            </Text>
+          )}
+
+          <View style={styles.infoDivider} />
+        </View>
+
+        {/* Bio */}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Bio</Text>
+
+          {isEditing ? (
+            <TextInput
+              style={[styles.inputField, { height: 80 }]}
+              value={editedBio}
+              onChangeText={setEditedBio}
+              placeholder="Enter your bio"
+              multiline
+            />
+          ) : (
+            <Text style={styles.infoValue}>
+              {profile?.bio ? profile.bio : "Not set"}
+            </Text>
+          )}
+        </View>
+
+        {/* Edit / Save button */}
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => {
+            if (isEditing) {
+              // Apply changes here
+              handleSaveProfile(editedName, editedBio);
+            }
+            setIsEditing(prev => !prev);
+          }}
+        >
+          <Text style={styles.editButtonText}>
+            {isEditing ? "Apply Changes" : "Edit"}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* User's Posts Section */}
       <View style={styles.postsSection}>
@@ -334,33 +472,87 @@ export default function Profile() {
               </View>
             ) : (
               <>
-                {/* Community Posts */}
                 {userPosts.length > 0 && (
                   <View style={styles.postTypeSection}>
-                    <Text style={styles.postTypeTitle}>Community Posts ({userPosts.length})</Text>
+                    <Text style={styles.postTypeTitle}>
+                      Community Posts ({userPosts.length})
+                    </Text>
                     {userPosts.map((post) => (
-                      <View key={post.id} style={styles.postCard}>
-                        <View style={styles.postHeader}>
-                          <View style={styles.postBadge}>
-                            <Text style={styles.postBadgeText}>{post.category}</Text>
+                      <TouchableOpacity
+                        key={post.id}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          router.push({
+                            pathname: '../communityPost',
+                            params: {
+                              id: post.id,
+                              user: post.username,
+                              authorId: post.authorId,
+                              time: post.createdAt.toISOString() ?? '',
+                              petType: post.petType,
+                              category: post.category,
+                              description: post.description,
+                              image: post.imageUrl ? encodeURIComponent(post.imageUrl) : '',
+                            },
+                          });
+                        }}
+                      >
+                        <View style={styles.postCard}>
+                          {/* Top-right menu */}
+                          <TouchableOpacity
+                            style={styles.postMenuButton}
+                            onPress={(e) => {
+                              e.stopPropagation(); // prevents parent onPress
+                              // Show options: Edit, Delete, Hide
+                              openMenu(post.id, 'community');
+                              // You could set state to show a modal/action sheet here
+                            }}
+                          >
+                            <Text style={styles.postMenuText}>…</Text>
+                          </TouchableOpacity>
+
+                          <View style={styles.postHeader}>
+                            <View style={styles.postBadge}>
+                              <Text style={styles.postBadgeText}>{post.category}</Text>
+                            </View>
+                            <View style={styles.postBadge}>
+                              <Text style={styles.postBadgeText}>{post.petType}</Text>
+                            </View>
                           </View>
-                          <View style={styles.postBadge}>
-                            <Text style={styles.postBadgeText}>{post.petType}</Text>
+                          <Text style={styles.postDescription}>{post.description}</Text>
+                          {post.imageUrl && (
+                            <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+                          )}
+                          <View style={styles.postFooter}>
+                            <Text style={styles.postStats}>{post.likes} likes</Text>
+                            <Text style={styles.postStats}>{post.comments} comments</Text>
+                            <Text style={styles.postDate}>
+                              {post.createdAt.toLocaleDateString()}
+                            </Text>
                           </View>
                         </View>
-                        <Text style={styles.postDescription}>{post.description}</Text>
-                        {post.imageUrl && (
-                          <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
-                        )}
-                        <View style={styles.postFooter}>
-                          <Text style={styles.postStats}>{post.likes} likes</Text>
-                          <Text style={styles.postStats}>{post.comments} comments</Text>
-                          <Text style={styles.postDate}>
-                            {post.createdAt.toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
+                    {/* Modal for menu options */}
+                    <Modal
+                      visible={menuVisible}
+                      transparent
+                      onRequestClose={closeMenu}
+                    >
+                      <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
+                        <View style={styles.modalContent}>
+                          {["Edit", "Delete", "Hide"].map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              onPress={() => handleMenuOption(option as "Edit" | "Delete" | "Hide")}
+                              style={styles.modalOption}
+                            >
+                              <Text style={styles.modalOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
                   </View>
                 )}
 
@@ -369,29 +561,88 @@ export default function Profile() {
                   <View style={styles.postTypeSection}>
                     <Text style={styles.postTypeTitle}>Playdates ({userPlaydates.length})</Text>
                     {userPlaydates.map((playdate) => (
-                      <View key={playdate.id} style={styles.postCard}>
-                        <Text style={styles.playdateTitle}>{playdate.title}</Text>
-                        <View style={styles.playdateInfo}>
-                          <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
-                          <Text style={styles.playdateLabel}>{playdate.city}, {playdate.state}</Text>
+                      <TouchableOpacity
+                        key={playdate.id}
+                        activeOpacity={0.8}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/playdatePost",
+                            params: {
+                              id: playdate.id,
+                              authorId: playdate.authorId,
+                              title: playdate.title,
+                              user: playdate.username,
+                              time: playdate.createdAt.toLocaleString(),
+                              description: playdate.description,
+                              location: `${playdate.city}, ${playdate.state}`,
+                              date: playdate.whenAt,
+                              image: playdate.imageUrl ? encodeURIComponent(playdate.imageUrl) : "",
+                              address: playdate.address ?? "",
+                              city: playdate.city,
+                              state: playdate.state,
+                              zip: playdate.zip ?? "",
+                            },
+                          })
+                        }
+                      >
+                        <View style={styles.postCard}>
+                          <TouchableOpacity
+                            style={styles.postMenuButton}
+                            onPress={(e) => {
+                              e.stopPropagation(); // prevents parent onPress
+                              // Show options: Edit, Delete, Hide
+                              openMenu(playdate.id, 'playdate');
+                              // You could set state to show a modal/action sheet here
+                            }}
+                          >
+                            <Text style={styles.postMenuText}>…</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.playdateTitle}>{playdate.title}</Text>
+                          <View style={styles.playdateInfo}>
+                            <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
+                            <Text style={styles.playdateLabel}>{playdate.city}, {playdate.state}</Text>
+                          </View>
+                          <Text style={styles.postDescription}>{playdate.description}</Text>
+                          <View style={styles.playdateDetails}>
+                            <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
+                            <Text style={styles.playdateDetailText}>{playdate.place}</Text>
+                          </View>
+                          {playdate.imageUrl && (
+                            <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
+                          )}
+                          <View style={styles.postFooter}>
+                            <Text style={styles.postStats}>{playdate.likes} likes</Text>
+                            <Text style={styles.postStats}>{playdate.comments} comments</Text>
+                            <Text style={styles.postDate}>
+                              {playdate.createdAt.toLocaleDateString()}
+                            </Text>
+                          </View>
                         </View>
-                        <Text style={styles.postDescription}>{playdate.description}</Text>
-                        <View style={styles.playdateDetails}>
-                          <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
-                          <Text style={styles.playdateDetailText}>{playdate.place}</Text>
-                        </View>
-                        {playdate.imageUrl && (
-                          <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
-                        )}
-                        <View style={styles.postFooter}>
-                          <Text style={styles.postDate}>
-                            {playdate.createdAt.toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
+                    {/* Modal for menu options */}
+                    <Modal
+                      visible={menuVisible}
+                      transparent
+                      onRequestClose={closeMenu}
+                    >
+                      <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
+                        <View style={styles.modalContent}>
+                          {["Edit", "Delete", "Hide"].map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              onPress={() => handleMenuOption(option as "Edit" | "Delete" | "Hide")}
+                              style={styles.modalOption}
+                            >
+                              <Text style={styles.modalOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
                   </View>
                 )}
+
               </>
             )}
           </>
@@ -400,8 +651,6 @@ export default function Profile() {
     </ScrollView>
   );
 }
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -683,5 +932,82 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 20,
   },
+  profileInfoBox: {
+  backgroundColor: '#fff',
+  padding: 20,
+  marginHorizontal: 16,
+  marginTop: 20,
+  borderRadius: 12,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.08,
+  shadowRadius: 6,
+  elevation: 3,
+},
+
+infoRow: {
+  marginBottom: 16,
+},
+
+infoLabel: {
+  fontSize: 16,
+  color: '#777',
+  marginBottom: 4,
+  fontWeight: '500',
+},
+
+infoValue: {
+  fontSize: 15,
+  color: '#555',
+  lineHeight: 20,
+},
+
+infoDivider: {
+  height: 1,
+  backgroundColor: '#eee',
+  marginTop: 12,
+},
+
+editButton: {
+  alignSelf: "flex-end",
+  backgroundColor: "#007AFF",
+  paddingHorizontal: 14,
+  paddingVertical: 6,
+  borderRadius: 8,
+  marginBottom: 12,
+},
+editButtonText: {
+  color: "#fff",
+  fontWeight: "600",
+},
+
+inputField: {
+  borderWidth: 1,
+  borderColor: "#ccc",
+  borderRadius: 8,
+  paddingHorizontal: 10,
+  paddingVertical: 8,
+  fontSize: 16,
+  backgroundColor: "#fafafa",
+  color: "#333",
+  marginTop: 4,
+},
+
+postMenuButton: {
+  position: 'absolute',
+  right: 8,
+  zIndex: 10,
+  padding: 4,
+},
+
+postMenuText: {
+  fontSize: 18,
+  fontWeight: '600',
+},
+
+modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
+modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
+modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+modalOptionText: { fontSize: 16 },
 
 });
