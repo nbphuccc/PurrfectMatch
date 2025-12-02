@@ -110,6 +110,10 @@ export default function PlaydateScreen() {
   const [selectedLocation, setSelectedLocation] = React.useState<SelectedLocation | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+
 
   const dynamicCardWidth = width > 900 ? 800 : width > 600 ? 550 : "100%";
 
@@ -650,7 +654,6 @@ export default function PlaydateScreen() {
                   if (date) {
                     setSelectedTime(date);
 
-                    // Format like "2:30 PM"
                     const formatted = date.toLocaleTimeString([], {
                       hour: "numeric",
                       minute: "2-digit",
@@ -664,13 +667,38 @@ export default function PlaydateScreen() {
             )}
 
             <Text style={styles.label}>Date (required):</Text>
-            <TextInput
-              style={[styles.input, errors.date && styles.errorInput]}
-              placeholder="YYYY-MM-DD"
-              value={formData.date}
-              onChangeText={(text) => handleInputChange("date", text)}
-              onFocus={() => setShowTimePicker(false)} 
-            />
+
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(prev => !prev)}   // toggle open/close
+              style={[styles.input, errors.date && styles.errorInput, { justifyContent: "center" }]}
+            >
+              <Text style={{ color: formData.date ? "#000" : "#999" }}>
+                {formData.date || "Select Date"}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={selectedDate}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                minimumDate={new Date()}   // 👈 prevent past dates  
+                onChange={(event, date) => {
+                  // auto close for Android
+                  if (Platform.OS !== "ios") setShowDatePicker(false);
+
+                  if (date) {
+                    setSelectedDate(date);
+
+                    // format to YYYY-MM-DD
+                    const formatted = date.toISOString().split("T")[0];
+
+                    handleInputChange("date", formatted);
+                  }
+                }}
+              />
+            )}
+
 
             <Text style={styles.label}>Pet Breed (required):</Text>
             <TextInput
