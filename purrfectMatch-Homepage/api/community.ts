@@ -24,6 +24,7 @@ export interface CommunityPostFirebase {
   petType: string;
   category: string;
   description: string;
+  edits?: string[];
   imageUrl?: string;
   likes: number;
   comments: number;
@@ -130,6 +131,30 @@ export async function deleteCommunityPostFirebase(postId: string) {
   }
 }
 
+export const editCommunityPostFirebase = async (postId: string, newDescription: string): Promise<{ success: boolean}> => {
+  try {
+    const postRef = doc(db, "community_posts", postId);
+    const postSnap = await getDoc(postRef);
+
+    if (!postSnap.exists()) {
+      return { success: false };
+    }
+
+    const oldDescription = postSnap.data().description;
+
+    // Update the post description: save previous description in edits array
+    await updateDoc(postRef, {
+      description: newDescription,
+      edits: arrayUnion(oldDescription),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to edit post:", error);
+    return { success: false };
+  }
+}
+
 // ==================== COMMENTS (FIREBASE) ====================
 
 export interface CommentFirebase {
@@ -228,7 +253,7 @@ export async function deleteCommunityCommentFirebase(commentId: string, postId: 
   }
 }
 
-export const editCommunityCommentFirebase = async (commentId: string,newContent: string): Promise<{ success: boolean}> => {
+export const editCommunityCommentFirebase = async (commentId: string, newContent: string): Promise<{ success: boolean}> => {
   try {
     const commentRef = doc(db, "community_comments", commentId);
     const commentSnap = await getDoc(commentRef);

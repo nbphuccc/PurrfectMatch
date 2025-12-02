@@ -138,6 +138,30 @@ export async function deletePlaydatePostFirebase(postId: string) {
   }
 }
 
+export const editPlaydatePostFirebase = async (postId: string, newDescription: string): Promise<{ success: boolean}> => {
+  try {
+    const postRef = doc(db, "playdate_posts", postId);
+    const postSnap = await getDoc(postRef);
+
+    if (!postSnap.exists()) {
+      return { success: false };
+    }
+
+    const oldDescription = postSnap.data().description;
+
+    // Update the post description: save previous description in edits array
+    await updateDoc(postRef, {
+      description: newDescription,
+      edits: arrayUnion(oldDescription),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to edit post:", error);
+    return { success: false };
+  }
+}
+
 // ==================== FIREBASE COMMENTS (NO INDEX NEEDED) ====================
 
 export interface PlaydateCommentFirebase {

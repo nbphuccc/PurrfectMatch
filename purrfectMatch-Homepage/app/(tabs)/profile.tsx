@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ActivityIndicator, Platform, ScrollView, Image, Switch, Modal } from 'react-native';
-import { loginFirebase, logoutFirebase, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
+import { loginFirebase, logoutFirebase, getCurrentUser, setUserProfileFirebase, getUserProfileFirebase, ProfileFirebase, updateProfileFirebase} from '../../api/firebaseAuth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
-import { listCommunityPostsFirebase, CommunityPostFirebase, deleteCommunityPostFirebase } from '../../api/community';
-import { listPlaydatesFirebase, PlaydatePostFirebase, deletePlaydatePostFirebase } from '../../api/playdates';
+import { listCommunityPostsFirebase, CommunityPostFirebase, deleteCommunityPostFirebase, editCommunityPostFirebase } from '../../api/community';
+import { listPlaydatesFirebase, PlaydatePostFirebase, deletePlaydatePostFirebase, editPlaydatePostFirebase } from '../../api/playdates';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -16,33 +16,35 @@ export default function Profile() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string; email: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userPosts, setUserPosts] = useState<(CommunityPostFirebase & { id: string; type: 'community' })[]>([]);
   const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [profile, setProfile] = useState<ProfileFirebase | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [editedName, setEditedName] = useState<string>("");
   const [editedBio, setEditedBio] = useState<string>("");
   const [emailIsPublic, setEmailIsPublic] = useState<boolean>(false);
-  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuVisible, setMenuVisible] = useState<boolean>(false);
   const [selectedPost, setSelectedPost] = useState<{postId: string; type: 'community' | 'playdate'} | null>(null);
+  const [isEditingPost, setIsEditingPost] = useState<boolean>(false);
+  const [editedPostDescription, setEditedPostDescription] = useState<string | null>(null);
 
   const router = useRouter();
 
-  const loadUserPosts = React.useCallback(async (userId: string) => {
+  const loadUserPosts = useCallback(async () => {
+    const currentUser = getCurrentUser();
     setLoadingPosts(true);
     try {
       // Fetch community posts
       const allCommunityPosts = await listCommunityPostsFirebase();
       const userCommunityPosts = allCommunityPosts
-        .filter(post => post.authorId === userId)
+        .filter(post => post.authorId === currentUser?.uid)
         .map(post => ({ ...post, type: 'community' as const }));
 
       // Fetch playdates
       const allPlaydates = await listPlaydatesFirebase();
-      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === userId);
+      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === currentUser?.uid);
 
       setUserPosts(userCommunityPosts);
       setUserPlaydates(userPlaydatePosts);
@@ -57,15 +59,8 @@ export default function Profile() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser({
-          id: user.uid,
-          email: user.email!,
-          username: user.displayName || 'User',
-        });
         setIsLoggedIn(true);
         console.log('User logged in:', user.email);
-        // Load user's posts when logged in
-        loadUserPosts(user.uid);
         const currProfile = await getUserProfileFirebase(user.uid);
 
         if (!currProfile) {
@@ -89,8 +84,8 @@ export default function Profile() {
         setEditedName(finalProfile?.name || "");
         setEditedBio(finalProfile?.bio || "");
         setEmailIsPublic(finalProfile?.publicEmail || false);
+        loadUserPosts();
       } else {
-        setCurrentUser(null);
         setIsLoggedIn(false);
         setUserPosts([]);
         setUserPlaydates([]);
@@ -104,7 +99,6 @@ export default function Profile() {
     return () => unsubscribe();
   }, [loadUserPosts]);
 
-  
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -119,6 +113,8 @@ export default function Profile() {
       quality: 1.0,
     });
 
+    const currentUser = getCurrentUser();
+
     if (!result.canceled) {
       const asset = result.assets[0];
       const localUri = asset.uri;
@@ -127,12 +123,12 @@ export default function Profile() {
       const blob = await response.blob();
 
       const storage = getStorage();
-      const storageRef = ref(storage, `avatars/${currentUser?.id}.jpg`);
+      const storageRef = ref(storage, `avatars/${currentUser?.uid}.jpg`);
       await uploadBytes(storageRef, blob);
 
       const downloadURL = await getDownloadURL(storageRef);
 
-      await setUserProfileFirebase(currentUser!.id, {
+      await setUserProfileFirebase(currentUser!.uid, {
         ...profile!,
         avatar: downloadURL,
       });
@@ -145,10 +141,10 @@ export default function Profile() {
   };
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       console.log('Screen focused, refreshing posts...');
-      loadUserPosts(currentUser?.id || "");
-    }, [loadUserPosts, currentUser?.id])
+      loadUserPosts();
+    }, [loadUserPosts])
   );
 
   const handleLogIn = async () => {
@@ -205,8 +201,9 @@ export default function Profile() {
 
   const handleSaveProfile = async (name: string, bio: string) => {
     try {
+      const currentUser = getCurrentUser();
       if (!currentUser) return;
-      await updateProfileFirebase(currentUser.id, {
+      await updateProfileFirebase(currentUser.uid, {
         name: name.trim(),
         bio: bio.trim(),
         publicEmail: emailIsPublic,
@@ -216,16 +213,6 @@ export default function Profile() {
     } catch (e) {
       console.error("Failed to update profile:", e);
     }
-  };
-
-  const openMenu = (postId: string, type: 'community' | 'playdate') => {
-    setSelectedPost({postId, type});
-    setMenuVisible(true);
-  };
-
-  const closeMenu = () => {
-    setSelectedPost(null);
-    setMenuVisible(false);
   };
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
@@ -249,7 +236,7 @@ export default function Profile() {
         const response = await deleteFn(selectedPost.postId);
 
         if (response.success) {
-          loadUserPosts(currentUser?.id || "");
+          loadUserPosts();
           Alert.alert("Success", "Post deleted successfully.");
         } else {
           Alert.alert("Error", "Failed to delete post.");
@@ -259,8 +246,48 @@ export default function Profile() {
         Alert.alert("Error", "Failed to delete post.");
       }
     }
+    if (option === "Edit") {
+      console.log(isEditingPost);
+      setIsEditingPost(true);
+    }
+    setMenuVisible(false);
+  };
 
-    closeMenu();
+  const handleEditPostDescription = async () => {
+    try {
+      if (!selectedPost) {
+        Alert.alert("Error", "No post selected.");
+        return;
+      }
+      if (!editedPostDescription) {
+        Alert.alert("Error", "Post cannot be empty.");
+        return;
+      }
+
+      const editActions: Record<string, (id: string, text: string) => Promise<any>> = {
+        community: editCommunityPostFirebase,
+        playdate: editPlaydatePostFirebase,
+      };
+
+      const editFn = editActions[selectedPost.type];
+      if (!editFn) {
+        Alert.alert("Error", "Unknown post type.");
+        return;
+      }
+
+      const response = await editFn(selectedPost.postId, editedPostDescription);
+
+      if (response.success) {
+        loadUserPosts();
+        Alert.alert("Success", "Post edited successfully.");
+      } else {
+        Alert.alert("Error", "Failed to edit post.");
+      }
+
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Failed to edit post.");
+    }
   };
 
   if (!isLoggedIn) {
@@ -349,8 +376,8 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.username}>{currentUser?.username}</Text>
-        <Text style={styles.email}>{currentUser?.email}</Text>
+        <Text style={styles.username}>{getCurrentUser()?.displayName}</Text>
+        <Text style={styles.email}>{getCurrentUser()?.email}</Text>
         
         {/* show number of posts (playdate, community) */}
         <View style={styles.statsContainer}>
@@ -380,7 +407,7 @@ export default function Profile() {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Name</Text>
 
-          {isEditing ? (
+          {isEditingProfile ? (
             <TextInput
               style={styles.inputField}
               value={editedName}
@@ -399,7 +426,7 @@ export default function Profile() {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Email</Text>
 
-          {isEditing ? (
+          {isEditingProfile ? (
             // Show toggle when editing
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Text style={styles.infoValue}>
@@ -425,7 +452,7 @@ export default function Profile() {
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Bio</Text>
 
-          {isEditing ? (
+          {isEditingProfile ? (
             <TextInput
               style={[styles.inputField, { height: 80 }]}
               value={editedBio}
@@ -444,15 +471,15 @@ export default function Profile() {
         <TouchableOpacity
           style={styles.editButton}
           onPress={() => {
-            if (isEditing) {
+            if (isEditingProfile) {
               // Apply changes here
               handleSaveProfile(editedName, editedBio);
             }
-            setIsEditing(prev => !prev);
+            setIsEditingProfile(prev => !prev);
           }}
         >
           <Text style={styles.editButtonText}>
-            {isEditing ? "Apply Changes" : "Edit"}
+            {isEditingProfile ? "Apply Changes" : "Edit"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -502,10 +529,9 @@ export default function Profile() {
                           <TouchableOpacity
                             style={styles.postMenuButton}
                             onPress={(e) => {
-                              e.stopPropagation(); // prevents parent onPress
-                              // Show options: Edit, Delete, Hide
-                              openMenu(post.id, 'community');
-                              // You could set state to show a modal/action sheet here
+                              e.stopPropagation();
+                              setMenuVisible(true);
+                              setSelectedPost({postId: post.id, type:'community'});
                             }}
                           >
                             <Text style={styles.postMenuText}>⋮</Text>
@@ -519,10 +545,44 @@ export default function Profile() {
                               <Text style={styles.postBadgeText}>{post.petType}</Text>
                             </View>
                           </View>
-                          <Text style={styles.postDescription}>{post.description}</Text>
+
+                          {/* Editing view for description */}
+                          {isEditingPost &&
+                          selectedPost?.type === 'community' &&
+                          selectedPost.postId === post.id ? (
+                            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                              <TextInput
+                                value={editedPostDescription ?? post.description}
+                                onChangeText={setEditedPostDescription}
+                                style={{
+                                  flex: 1,
+                                  borderWidth: 1,
+                                  borderColor: '#ccc',
+                                  borderRadius: 6,
+                                  padding: 8,
+                                }}
+                                multiline
+                              />
+                              <TouchableOpacity
+                                style={{ marginLeft: 8 }}
+                                onPress={() => {
+                                  handleEditPostDescription();
+                                  setIsEditingPost(false);
+                                  setSelectedPost(null);
+                                  setEditedPostDescription(null);
+                                }}
+                              >
+                                <Text style={{ color: '#007aff', fontWeight: '700' }}>Save</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <Text style={styles.postDescription}>{post.description}</Text>
+                          )}
+
                           {post.imageUrl && (
                             <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
                           )}
+
                           <View style={styles.postFooter}>
                             <Text style={styles.postStats}>{post.likes} likes</Text>
                             <Text style={styles.postStats}>{post.comments} comments</Text>
@@ -533,13 +593,14 @@ export default function Profile() {
                         </View>
                       </TouchableOpacity>
                     ))}
+
                     {/* Modal for menu options */}
                     <Modal
                       visible={menuVisible}
                       transparent
-                      onRequestClose={closeMenu}
+                      onRequestClose={() => setMenuVisible(false)}
                     >
-                      <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
+                      <TouchableOpacity style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
                         <View style={styles.modalContent}>
                           {["Edit", "Delete"].map((option) => (
                             <TouchableOpacity
@@ -589,10 +650,9 @@ export default function Profile() {
                           <TouchableOpacity
                             style={styles.postMenuButton}
                             onPress={(e) => {
-                              e.stopPropagation(); // prevents parent onPress
-                              // Show options: Edit, Delete, Hide
-                              openMenu(playdate.id, 'playdate');
-                              // You could set state to show a modal/action sheet here
+                              e.stopPropagation();
+                              setMenuVisible(true);
+                              setSelectedPost({postId: playdate.id, type:'playdate'});
                             }}
                           >
                             <Text style={styles.postMenuText}>⋮</Text>
@@ -602,7 +662,37 @@ export default function Profile() {
                             <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
                             <Text style={styles.playdateLabel}>{playdate.city}, {playdate.state}</Text>
                           </View>
-                          <Text style={styles.postDescription}>{playdate.description}</Text>
+                          {/* Editing view for description */}
+                          {isEditingPost &&
+                          selectedPost?.type === 'playdate' &&
+                          selectedPost.postId === playdate.id ? (
+                            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                              <TextInput
+                                value={editedPostDescription ?? playdate.description}
+                                onChangeText={setEditedPostDescription}
+                                style={{
+                                  flex: 1,
+                                  borderWidth: 1,
+                                  borderColor: '#ccc',
+                                  borderRadius: 6,
+                                  padding: 8,
+                                }}
+                                multiline
+                              />
+                              <TouchableOpacity
+                                style={{ marginLeft: 8 }}
+                                onPress={() => {
+                                  handleEditPostDescription();
+                                  setIsEditingPost(false);
+                                  setSelectedPost(null);
+                                }}
+                              >
+                                <Text style={{ color: '#007aff', fontWeight: '700' }}>Save</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <Text style={styles.postDescription}>{playdate.description}</Text>
+                          )}
                           <View style={styles.playdateDetails}>
                             <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
                             <Text style={styles.playdateDetailText}>{playdate.place}</Text>
@@ -624,9 +714,9 @@ export default function Profile() {
                     <Modal
                       visible={menuVisible}
                       transparent
-                      onRequestClose={closeMenu}
+                      onRequestClose={() => setMenuVisible(false)}
                     >
-                      <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
+                      <TouchableOpacity style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
                         <View style={styles.modalContent}>
                           {["Edit", "Delete"].map((option) => (
                             <TouchableOpacity
