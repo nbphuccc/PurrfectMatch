@@ -17,8 +17,8 @@
 - **app/**: App screens and navigation
 - **(tabs)/**: screens, navigation, components, features, services, store, hooks, utils
 - **assets/**: images, fonts
-- **tests/**: frontend tests (`*.test.tsx`)
-- **package.json**, **app.json** or **app.config.ts**
+- **_tests_/**: frontend tests (`*.test.js`)
+- **package.json**, **app.json** or **app.config.js**
 
 ### docs/
 - `README`, `User Manual`, `Developer Guide`, `reports`, `coding-guidelines`
@@ -26,7 +26,7 @@
 ### .github/workflows/
 - `ci.yml`: GitHub Actions (lint/test)
 
-**Source:** `purrfectMatch-Homepage/src`  
+**Source:** `purrfectMatch-Homepage/app`  
 **Tests:** `purrfectMatch-Homepage/__tests__`   
 **Data:** Cloud Firestore (production + emulator)
 
@@ -71,6 +71,7 @@ FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
 FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_api_key_here
 ```
 Security Note: Never commit the .env file to Git. It's already in .gitignore.
 
@@ -93,7 +94,7 @@ npm start
 ### 4.2 Continuous Integration
 - CI runs on PRs to main and on push (as configured) using GitHub Actions.
 - **Workflow file:** `.github/workflows/ci.yml`
-- **CI steps:** install, build and test frontend. If your CI still references the archived server, update the workflow to remove server steps.
+- **CI steps:** install, build and tests frontend. 
 
 ---
 
@@ -102,7 +103,7 @@ npm start
 ### 5.1 Naming & Placement
 **Frontend**
 - Place in `purrfectMatch-Homepage/__tests__/`
-- Use `*.test.tsx`
+- Use `*.test.js`
 
 ### 5.2 Harness
 **Backend / Integration tests**
@@ -122,7 +123,7 @@ npm start
 
 ### 6.1 Versioning & Tagging
 - Bump versions in:
-  - `server/package.json` and `purrfectMatch-Homepage/package.json`
+  - `purrfectMatch-Homepage/package.json`
 - Commit:  
   `git commit -m "chore(release): vX.Y.Z"`
 
@@ -166,7 +167,6 @@ npm start
 - TypeScript strict mode in frontend.  
 - ESLint + Prettier (Airbnb style for JS/TS).  
 - React/React Native best practices: hooks, small components.  
-- SQL style per Simon Holywell.  
 
 ---
 
