@@ -243,6 +243,7 @@ export default function PlaydateScreen() {
 
     const trimmedTime = formData.time.trim();
     const trimmedDate = formData.date.trim();
+
     const trimmedBreed = formData.petBreed.trim();
     const trimmedCity = formData.city.trim();
 
@@ -272,7 +273,23 @@ export default function PlaydateScreen() {
       return;
     }
 
-    const whenAt = `${trimmedDate} ${trimmedTime}`;
+    const whenAt = `${trimmedDate} ${trimmedTime}`;  
+    const selectedDateTime = new Date(
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
+      selectedTime.getHours(),
+      selectedTime.getMinutes(),
+      0,
+      0
+    );
+
+    const now = new Date();
+    if (selectedDateTime <= now) {
+      showAlert("Invalid Time", "Please select a time in the future.");
+      return;
+    }
+
 
     try {
       setLoading(true);
@@ -688,7 +705,6 @@ export default function PlaydateScreen() {
                   if (date) {
                     setSelectedDate(date);
 
-                    // Format LOCAL date to YYYY-MM-DD (no timezone issues)
                     const year = date.getFullYear();
                     const month = String(date.getMonth() + 1).padStart(2, "0");
                     const day = String(date.getDate()).padStart(2, "0");
