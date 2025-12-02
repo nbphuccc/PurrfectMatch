@@ -210,6 +210,29 @@ export async function getPlaydateCommentsFirebase(
   }
 }
 
+export async function deletePlaydateCommentFirebase(commentId: string, postId: string): Promise<{ success: boolean }> {
+  try {
+    // Delete the comment
+    const commentRef = doc(db, "playdate_comments", commentId);
+    await deleteDoc(commentRef);
+
+    console.log(`Comment ${commentId} deleted successfully`);
+
+    // Decrement the comments count on the post
+    if (postId) {
+      const postRef = doc(db, "playdate_posts", postId);
+      await updateDoc(postRef, {
+        comments: increment(-1),
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to delete comment:", error);
+    return { success: false };
+  }
+}
+
 // ==================== LIKES (FIREBASE) ====================
 
 export async function toggleLikeFirebase(postId: string, userId: string) {

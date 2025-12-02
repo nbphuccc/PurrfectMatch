@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getCommentsFirebase, addCommentFirebase, CommentFirebase } from '../api/community';
+import { getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
@@ -34,72 +34,79 @@ const formatTimeValue = (v?: string | null) => {
   return formatRelativeTime(v);
 };
 
-export type CommentWithAvatar = CommentFirebase & {
-  avatar: string;
+export type DisplayComment = CommentFirebase & {
+  avatar: string, yours: boolean;
 };
 
 export default function PostDetail() {
   const params = useLocalSearchParams();
   const [comment, setComment] = useState('');
-  const [commentsList, setCommentsList] = useState<CommentWithAvatar[]>([]);
+  const [commentsList, setCommentsList] = useState<DisplayComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState<boolean>(false);
+  const [selectedComment, setSelectedComment] = useState<string | null>(null);
+  
   const router = useRouter();
 
   const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
 
-  const [, setTick] = React.useState(0);
-  React.useEffect(() => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
     const idt = setInterval(() => setTick(t => t + 1), 30 * 1000);
     return () => clearInterval(idt);
   }, []);
 
-  React.useEffect(() => {
-    let mounted = true;
-    
-    const loadComments = async () => {
+  const loadComments = useCallback(
+    async () => {
       if (!id || !authorId) return;
+
       setLoading(true);
       try {
+        // Load post author's avatar
         const authorProfile = await getUserProfileFirebase(authorId);
-        setPostAvatarUrl(authorProfile?.avatar);
-        console.log('Loading comments from Firebase for post:', id);
+        setPostAvatarUrl(authorProfile?.avatar || null);
+
+        console.log("Loading comments from Firebase for post:", id);
+
+        // Load comments
         const firebaseComments = await getCommentsFirebase(id);
-        if (!mounted) return;
+
         const currentUser = getCurrentUser();
-        if (currentUser){
+
+        if (currentUser) {
           const userProfile = await getUserProfileFirebase(currentUser.uid);
-          setAvatarUrl(userProfile?.avatar);
+          setAvatarUrl(userProfile?.avatar || null);
         }
+
+        // Format each comment
         const formatted = await Promise.all(
           firebaseComments.map(async (c) => {
             const profile = await getUserProfileFirebase(c.authorId);
-
             return {
-              id: c.id,
-              postId: c.postId,
-              authorId: c.authorId,
-              username: c.username,
-              content: c.content,
-              createdAt: c.createdAt,
-              avatar: profile?.avatar,
+              ...c,
+              avatar: profile?.avatar || null,
+              yours: currentUser?.uid === c.authorId,
             };
           })
         );
-        
+
         console.log(`Loaded ${formatted.length} comments from Firebase`);
         setCommentsList(formatted);
-      } catch (error) {
-        console.error('Error loading comments:', error);
+      } catch (err) {
+        console.error("Error loading comments:", err);
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
-    };
+    },
+    [authorId, id]
+  );
+
+  useEffect(() => {
     loadComments();
-    return () => { mounted = false; };
-  }, [id, authorId]);
+  }, [loadComments]);
 
   const displayedTime = formatTimeValue(time);
 
@@ -126,31 +133,39 @@ export default function PostDetail() {
       });
       
       console.log('Comment added! Reloading comments...');
-      
-      const firebaseComments = await getCommentsFirebase(id);
-      const formatted = await Promise.all(
-          firebaseComments.map(async (c) => {
-            const profile = await getUserProfileFirebase(c.authorId);
-            return {
-              id: c.id,
-              postId: c.postId,
-              authorId: c.authorId,
-              username: c.username,
-              content: c.content,
-              createdAt: c.createdAt,
-              avatar: profile?.avatar,
-            };
-          })
-        );
-      
-      setCommentsList(formatted);
-      setComment('');
+      loadComments();
     } catch (error) {
       console.error('Error posting comment:', error);
       Alert.alert('Error', 'Failed to post comment. Please try again.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleMenuOption = async (option: "Edit" | "Delete") => {
+    console.log(`${option} clicked for post: ${selectedComment}`);
+
+    if (option === "Delete") {
+      try {
+        if (!selectedComment) {
+          Alert.alert("Error", "No comment selected.");
+          return;
+        }
+        const response = await deleteCommunityCommentFirebase(selectedComment, id as string);
+
+        if (response.success) {
+          loadComments();
+          Alert.alert("Success", "Comment deleted successfully.");
+        } else {
+          Alert.alert("Error", "Failed to delete comment.");
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to delete comment.");
+      }
+    }
+
+    setMenuVisible(false);
   };
 
   return (
@@ -245,9 +260,41 @@ export default function PostDetail() {
                       </View>
                       <Text style={{ marginTop: 4 }}>{c.content}</Text>
                     </View>
+                    {/* "..." menu button ONLY for your comments */}
+                    {c.yours && (
+                      <TouchableOpacity
+                        style={styles.postMenuButton}
+                        onPress={() => {
+                          setMenuVisible(true);
+                          setSelectedComment(c.id);
+                        }}
+                      >
+                        <Text style={styles.postMenuText}>⋮</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))
               )}
+              {/* Modal for menu options */}
+              <Modal
+                visible={menuVisible}
+                transparent
+                onRequestClose = {() => setMenuVisible(false)}
+              >
+                <TouchableOpacity style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+                  <View style={styles.modalContent}>
+                    {["Edit", "Delete"].map((option) => (
+                      <TouchableOpacity
+                        key={option}
+                        onPress={() => handleMenuOption(option as "Edit" | "Delete", )}
+                        style={styles.modalOption}
+                      >
+                        <Text style={styles.modalOptionText}>{option}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
             </View>
           </View>
         </ScrollView>
@@ -345,4 +392,20 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     marginRight: 8,
   },
+  postMenuButton: {
+    position: 'absolute',
+    right: 8,
+    zIndex: 10,
+    padding: 4,
+  },
+
+  postMenuText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
+  modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
+  modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  modalOptionText: { fontSize: 16 },
 });
