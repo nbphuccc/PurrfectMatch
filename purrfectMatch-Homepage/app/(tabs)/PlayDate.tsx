@@ -452,6 +452,8 @@ export default function PlaydateScreen() {
                   style={styles.searchInput}
                   value={formData.city}
                   onChangeText={(text) => handleInputChange("city", text)}
+                  returnKeyType="search"
+                  onSubmitEditing={handleSearch}
                 />
                 <TouchableOpacity
                   onPress={handleSearch}
