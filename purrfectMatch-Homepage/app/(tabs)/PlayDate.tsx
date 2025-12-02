@@ -311,7 +311,6 @@ export default function PlaydateScreen() {
         longitude: selectedLocation?.longitude ?? null,
       });
 
-      // Reset form
       setShowForm(false);
       setFormData({
         time: "",
@@ -669,7 +668,7 @@ export default function PlaydateScreen() {
             <Text style={styles.label}>Date (required):</Text>
 
             <TouchableOpacity
-              onPress={() => setShowDatePicker(prev => !prev)}   // toggle open/close
+              onPress={() => setShowDatePicker(prev => !prev)}  
               style={[styles.input, errors.date && styles.errorInput, { justifyContent: "center" }]}
             >
               <Text style={{ color: formData.date ? "#000" : "#999" }}>
@@ -682,16 +681,18 @@ export default function PlaydateScreen() {
                 value={selectedDate}
                 mode="date"
                 display={Platform.OS === "ios" ? "spinner" : "default"}
-                minimumDate={new Date()}   // 👈 prevent past dates  
+                minimumDate={new Date()}   
                 onChange={(event, date) => {
-                  // auto close for Android
                   if (Platform.OS !== "ios") setShowDatePicker(false);
 
                   if (date) {
                     setSelectedDate(date);
 
-                    // format to YYYY-MM-DD
-                    const formatted = date.toISOString().split("T")[0];
+                    // Format LOCAL date to YYYY-MM-DD (no timezone issues)
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, "0");
+                    const day = String(date.getDate()).padStart(2, "0");
+                    const formatted = `${year}-${month}-${day}`;
 
                     handleInputChange("date", formatted);
                   }
