@@ -167,12 +167,7 @@ export default function Profile() {
           alert('Signed in successfully');
           router.replace('/');
         } else {
-          Alert.alert('Success', 'Signed in successfully', [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/'),
-            },
-          ]);
+          Alert.alert('Success', 'Signed in successfully');
         }
       } else {
         console.log('Login failed:', result.message);
@@ -685,6 +680,7 @@ export default function Profile() {
                                   handleEditPostDescription();
                                   setIsEditingPost(false);
                                   setSelectedPost(null);
+                                  setEditedPostDescription(null);
                                 }}
                               >
                                 <Text style={{ color: '#007aff', fontWeight: '700' }}>Save</Text>
