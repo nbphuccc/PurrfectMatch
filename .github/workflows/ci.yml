@@ -28,5 +28,3 @@ jobs:
       run: |
         npm ci
         npm test
-        # Optional: build step for web/native (uncomment if needed)
-        # npm run build
