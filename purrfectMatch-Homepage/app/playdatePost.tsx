@@ -10,12 +10,15 @@ import {
   Linking,
   Platform,
   KeyboardAvoidingView,
+  Modal,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   getPlaydateCommentsFirebase,
   addPlaydateCommentFirebase,
+  deletePlaydateCommentFirebase,
 } from "../api/playdates";
 import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
 import MapView, { Marker } from "react-native-maps";
@@ -63,6 +66,8 @@ export default function PlaydatePost() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState<boolean>(false);
+  const [selectedComment, setSelectedComment] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -113,16 +118,18 @@ export default function PlaydatePost() {
     if (!postId) return;
     setLoadingComments(true);
     const data = await getPlaydateCommentsFirebase(postId);
-    const commentsWithAvatars = await Promise.all(
+    const currentUser = getCurrentUser();
+    const displayComments = await Promise.all(
       data.map(async (comment) => {
         const profile = await getUserProfileFirebase(comment.authorId);
         return {
           ...comment,
           avatar: profile?.avatar || "",
+          yours: currentUser ? comment.authorId === currentUser.uid : false,
         };
       })
     );
-    setComments(commentsWithAvatars);
+    setComments(displayComments);
     setLoadingComments(false);
   };
 
@@ -179,6 +186,32 @@ export default function PlaydatePost() {
 
     fetchCoordinates();
   }, [address, city, state, zip]);
+
+  const handleMenuOption = async (option: "Edit" | "Delete") => {
+      console.log(`${option} clicked for post: ${selectedComment}`);
+  
+      if (option === "Delete") {
+        try {
+          if (!selectedComment) {
+            Alert.alert("Error", "No comment selected.");
+            return;
+          }
+          const response = await deletePlaydateCommentFirebase(selectedComment, postId);
+  
+          if (response.success) {
+            loadComments();
+            Alert.alert("Success", "Comment deleted successfully.");
+          } else {
+            Alert.alert("Error", "Failed to delete comment.");
+          }
+        } catch (err) {
+          console.error(err);
+          Alert.alert("Error", "Failed to delete comment.");
+        }
+      }
+  
+      setMenuVisible(false);
+    };
 
   return (
     <KeyboardAvoidingView
@@ -287,9 +320,41 @@ export default function PlaydatePost() {
                   </View>
                   <Text style={styles.commentContent}>{c.content}</Text>
                 </View>
+                {/* "..." menu button ONLY for your comments */}
+                {c.yours && (
+                  <TouchableOpacity
+                    style={styles.postMenuButton}
+                    onPress={() => {
+                      setMenuVisible(true);
+                      setSelectedComment(c.id);
+                    }}
+                  >
+                    <Text style={styles.postMenuText}>⋮</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))
           )}
+          {/* Modal for menu options */}
+          <Modal
+            visible={menuVisible}
+            transparent
+            onRequestClose = {() => setMenuVisible(false)}
+          >
+            <TouchableOpacity style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+              <View style={styles.modalContent}>
+                {["Edit", "Delete"].map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    onPress={() => handleMenuOption(option as "Edit" | "Delete", )}
+                    style={styles.modalOption}
+                  >
+                    <Text style={styles.modalOptionText}>{option}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
         </View>
 
         <View style={{ height: 100 }} />
@@ -408,4 +473,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
+  postMenuButton: {
+    position: 'absolute',
+    right: 8,
+    zIndex: 10,
+    padding: 4,
+  },
+
+  postMenuText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
+  modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
+  modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  modalOptionText: { fontSize: 16 },
 });

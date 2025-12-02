@@ -155,13 +155,13 @@ export default function PostDetail() {
 
         if (response.success) {
           loadComments();
-          Alert.alert("Success", "Post deleted successfully.");
+          Alert.alert("Success", "Comment deleted successfully.");
         } else {
-          Alert.alert("Error", "Failed to delete post.");
+          Alert.alert("Error", "Failed to delete comment.");
         }
       } catch (err) {
         console.error(err);
-        Alert.alert("Error", "Failed to delete post.");
+        Alert.alert("Error", "Failed to delete comment.");
       }
     }
 
@@ -393,19 +393,19 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   postMenuButton: {
-  position: 'absolute',
-  right: 8,
-  zIndex: 10,
-  padding: 4,
-},
+    position: 'absolute',
+    right: 8,
+    zIndex: 10,
+    padding: 4,
+  },
 
-postMenuText: {
-  fontSize: 18,
-  fontWeight: '600',
-},
+  postMenuText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
 
-modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
-modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
-modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
-modalOptionText: { fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
+  modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
+  modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  modalOptionText: { fontSize: 16 },
 });
