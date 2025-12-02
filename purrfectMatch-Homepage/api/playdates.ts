@@ -12,6 +12,8 @@ import {
   updateDoc,
   increment,
   writeBatch,
+  getDoc,
+  arrayUnion,
 } from "firebase/firestore";
 
 // ==================== FIREBASE PLAYDATES ====================
@@ -144,6 +146,7 @@ export interface PlaydateCommentFirebase {
   username: string;
   content: string;
   createdAt: Date;
+  edits?: string[];
 }
 
 export async function addPlaydateCommentFirebase(comment: {
@@ -197,6 +200,7 @@ export async function getPlaydateCommentsFirebase(
         username: data.username,
         content: data.content,
         createdAt: data.createdAt?.toDate() ?? new Date(),
+        edits: data.edits ?? [],
       } as PlaydateCommentFirebase & { id: string };
     });
 
@@ -229,6 +233,30 @@ export async function deletePlaydateCommentFirebase(commentId: string, postId: s
     return { success: true };
   } catch (error) {
     console.error("Failed to delete comment:", error);
+    return { success: false };
+  }
+}
+
+export const editPlaydateCommentFirebase = async (commentId: string,newContent: string): Promise<{ success: boolean}> => {
+  try {
+    const commentRef = doc(db, "playdate_comments", commentId);
+    const commentSnap = await getDoc(commentRef);
+
+    if (!commentSnap.exists()) {
+      return { success: false };
+    }
+
+    const oldContent = commentSnap.data().content;
+
+    // Update the comment: save previous content in edits array
+    await updateDoc(commentRef, {
+      content: newContent,
+      edits: arrayUnion(oldContent),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to edit comment:", error);
     return { success: false };
   }
 }
