@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Alert,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +20,7 @@ import {
   getPlaydateCommentsFirebase,
   addPlaydateCommentFirebase,
   deletePlaydateCommentFirebase,
+  editPlaydateCommentFirebase,
 } from "../api/playdates";
 import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
 import MapView, { Marker } from "react-native-maps";
@@ -68,6 +70,9 @@ export default function PlaydatePost() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
   const [selectedComment, setSelectedComment] = useState<string | null>(null);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -188,29 +193,57 @@ export default function PlaydatePost() {
   }, [address, city, state, zip]);
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
-      console.log(`${option} clicked for post: ${selectedComment}`);
-  
-      if (option === "Delete") {
-        try {
-          if (!selectedComment) {
-            Alert.alert("Error", "No comment selected.");
-            return;
-          }
-          const response = await deletePlaydateCommentFirebase(selectedComment, postId);
-  
-          if (response.success) {
-            loadComments();
-            Alert.alert("Success", "Comment deleted successfully.");
-          } else {
-            Alert.alert("Error", "Failed to delete comment.");
-          }
-        } catch (err) {
-          console.error(err);
+    console.log(`${option} clicked for post: ${selectedComment}`);
+
+    if (option === "Delete") {
+      try {
+        if (!selectedComment) {
+          Alert.alert("Error", "No comment selected.");
+          return;
+        }
+        const response = await deletePlaydateCommentFirebase(selectedComment, postId);
+
+        if (response.success) {
+          loadComments();
+          Alert.alert("Success", "Comment deleted successfully.");
+        } else {
           Alert.alert("Error", "Failed to delete comment.");
         }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to delete comment.");
       }
+    }
+    if (option === "Edit") {
+      setEditing(true);
+    }
+
+    setMenuVisible(false);
+  };
+
+  const handleEditComment = async () => {
+      try {
+        if (!selectedComment) {
+          Alert.alert("Error", "No comment selected.");
+          return;
+        }
+        if (!editedContent) {
+          Alert.alert("Error", "Comment cannot be empty.");
+          return;
+        }
   
-      setMenuVisible(false);
+        const response = await editPlaydateCommentFirebase(selectedComment,editedContent);
+  
+        if (response.success) {
+          loadComments();
+          Alert.alert("Success", "Comment edited successfully.");
+        } else {
+          Alert.alert("Error", "Failed to edit comment.");
+        }
+      } catch (err) {
+        console.error(err);
+        Alert.alert("Error", "Failed to edit comment.");
+      }
     };
 
   return (
@@ -317,8 +350,53 @@ export default function PlaydatePost() {
                       <Text style={styles.commentUsername}>{c.username}</Text>
                     </TouchableOpacity>
                     <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
+                    {/* Show (edited) if edits exist */}
+                    {c.edits && c.edits.length > 0 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedComment(c.id);
+                          setEditHistoryModalVisible(true);
+                        }}
+                      >
+                        <Text style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>
+                          (edited)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                  <Text style={styles.commentContent}>{c.content}</Text>
+                  {/* Editing view */}
+                  {editing && selectedComment === c.id ? (
+                    <View style={{ marginTop: 4, flexDirection: "row", alignItems: "center" }}>
+                      <TextInput
+                        value={editedContent ?? c.content}
+                        onChangeText={setEditedContent}
+                        style={{
+                          flex: 1,
+                          borderWidth: 1,
+                          borderColor: "#ccc",
+                          borderRadius: 6,
+                          padding: 8
+                        }}
+                        multiline
+                      />
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          handleEditComment();
+                          setEditing(false);
+                          setEditedContent(null);
+                          setSelectedComment(null);
+                        }}
+                        style={{ marginLeft: 8 }}
+                      >
+                        <Text style={{ color: "#007aff", fontWeight: "700" }}>Save</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    /* Normal non-editing text */
+                    <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                  )}
+
                 </View>
                 {/* "..." menu button ONLY for your comments */}
                 {c.yours && (
@@ -346,7 +424,7 @@ export default function PlaydatePost() {
                 {["Edit", "Delete"].map((option) => (
                   <TouchableOpacity
                     key={option}
-                    onPress={() => handleMenuOption(option as "Edit" | "Delete", )}
+                    onPress={() => handleMenuOption(option as "Edit" | "Delete" )}
                     style={styles.modalOption}
                   >
                     <Text style={styles.modalOptionText}>{option}</Text>
@@ -354,6 +432,51 @@ export default function PlaydatePost() {
                 ))}
               </View>
             </TouchableOpacity>
+          </Modal>
+
+          {/* Modal for edit history */}
+          <Modal
+            visible={editHistoryModalVisible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setEditHistoryModalVisible(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => setEditHistoryModalVisible(false)}>
+              <View style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                justifyContent: "center",
+                padding: 20,
+              }}>
+                <TouchableWithoutFeedback>
+                  <View style={{
+                    backgroundColor: "#fff",
+                    borderRadius: 10,
+                    padding: 20,
+                    maxHeight: "70%",
+                  }}>
+                    <ScrollView>
+                      {(() => {
+                        const comment = comments.find(x => x.id === selectedComment);
+                        return comment?.edits?.map((text: string, idx: number) => (
+                          <View
+                            key={idx}
+                            style={{
+                              backgroundColor: "#f7f7f7",
+                              padding: 12,
+                              borderRadius: 8,
+                              marginBottom: 12,
+                            }}
+                          >
+                            <Text style={{ color: "#444" }}>{text}</Text>
+                          </View>
+                        ));
+                      })()}
+                    </ScrollView>
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
           </Modal>
         </View>
 

@@ -11,7 +11,9 @@ import {
   updateDoc,
   increment,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  getDoc,
+  arrayUnion,
 } from 'firebase/firestore';
 
 // ==================== FIREBASE FUNCTIONS ====================
@@ -22,6 +24,7 @@ export interface CommunityPostFirebase {
   petType: string;
   category: string;
   description: string;
+  edits?: string[];
   imageUrl?: string;
   likes: number;
   comments: number;
@@ -128,6 +131,30 @@ export async function deleteCommunityPostFirebase(postId: string) {
   }
 }
 
+export const editCommunityPostFirebase = async (postId: string, newDescription: string): Promise<{ success: boolean}> => {
+  try {
+    const postRef = doc(db, "community_posts", postId);
+    const postSnap = await getDoc(postRef);
+
+    if (!postSnap.exists()) {
+      return { success: false };
+    }
+
+    const oldDescription = postSnap.data().description;
+
+    // Update the post description: save previous description in edits array
+    await updateDoc(postRef, {
+      description: newDescription,
+      edits: arrayUnion(oldDescription),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to edit post:", error);
+    return { success: false };
+  }
+}
+
 // ==================== COMMENTS (FIREBASE) ====================
 
 export interface CommentFirebase {
@@ -137,6 +164,7 @@ export interface CommentFirebase {
   username: string;
   content: string;
   createdAt: Date;
+  edits?: string[];
 }
 
 export async function getCommentsFirebase(postId: string): Promise<CommentFirebase[]> {
@@ -158,6 +186,7 @@ export async function getCommentsFirebase(postId: string): Promise<CommentFireba
         username: data.username,
         content: data.content,
         createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // ⭐ Fallback
+        edits: data.edits ?? [],
       };
     });
     
@@ -220,6 +249,30 @@ export async function deleteCommunityCommentFirebase(commentId: string, postId: 
     return { success: true };
   } catch (error) {
     console.error("Failed to delete comment:", error);
+    return { success: false };
+  }
+}
+
+export const editCommunityCommentFirebase = async (commentId: string, newContent: string): Promise<{ success: boolean}> => {
+  try {
+    const commentRef = doc(db, "community_comments", commentId);
+    const commentSnap = await getDoc(commentRef);
+
+    if (!commentSnap.exists()) {
+      return { success: false };
+    }
+
+    const oldContent = commentSnap.data().content;
+
+    // Update the comment: save previous content in edits array
+    await updateDoc(commentRef, {
+      content: newContent,
+      edits: arrayUnion(oldContent),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to edit comment:", error);
     return { success: false };
   }
 }

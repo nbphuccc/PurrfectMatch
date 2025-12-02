@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase } from '../api/community';
+import { getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
@@ -48,7 +48,10 @@ export default function PostDetail() {
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
   const [selectedComment, setSelectedComment] = useState<string | null>(null);
-  
+  const [editing, setEditing] = useState<boolean>(false);
+  const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
+
   const router = useRouter();
 
   const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
@@ -85,6 +88,7 @@ export default function PostDetail() {
         const formatted = await Promise.all(
           firebaseComments.map(async (c) => {
             const profile = await getUserProfileFirebase(c.authorId);
+            console.log(c);
             return {
               ...c,
               avatar: profile?.avatar || null,
@@ -164,8 +168,36 @@ export default function PostDetail() {
         Alert.alert("Error", "Failed to delete comment.");
       }
     }
+    if (option === "Edit") {
+      setEditing(true);
+    }
 
     setMenuVisible(false);
+  };
+
+  const handleEditComment = async () => {
+    try {
+      if (!selectedComment) {
+        Alert.alert("Error", "No comment selected.");
+        return;
+      }
+      if (!editedContent) {
+        Alert.alert("Error", "Comment cannot be empty.");
+        return;
+      }
+
+      const response = await editCommunityCommentFirebase(selectedComment,editedContent);
+
+      if (response.success) {
+        loadComments();
+        Alert.alert("Success", "Comment edited successfully.");
+      } else {
+        Alert.alert("Error", "Failed to edit comment.");
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Failed to edit comment.");
+    }
   };
 
   return (
@@ -257,11 +289,54 @@ export default function PostDetail() {
                         <Text style={{ color: '#666', fontSize: 12 }}>
                           {formatTimeValue(c.createdAt.toISOString())}
                         </Text>
+                        {c.edits && c.edits.length > 0 && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setSelectedComment(c.id);
+                              setEditHistoryModalVisible(true);
+                            }}
+                          >
+                            <Text style={{ color: '#666', fontSize: 12, marginLeft: 4 }}>
+                              (edited)
+                            </Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
-                      <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                      {/* Editing View */}
+                      {editing && selectedComment === c.id ? (
+                        <View style={{ marginTop: 4, flexDirection: "row", alignItems: "center" }}>
+                          <TextInput
+                            value={editedContent ?? c.content}
+                            onChangeText={setEditedContent}
+                            style={{
+                              flex: 1,
+                              borderWidth: 1,
+                              borderColor: "#ccc",
+                              borderRadius: 6,
+                              padding: 8
+                            }}
+                            multiline
+                          />
+
+                          <TouchableOpacity
+                            onPress={() => {
+                              handleEditComment();
+                              setEditing(false);
+                              setEditedContent(null);
+                              setSelectedComment(null);
+                            }}
+                            style={{ marginLeft: 8 }}
+                          >
+                            <Text style={{ color: "#007aff", fontWeight: "700" }}>Save</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        /* Normal non-editing text */
+                        <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                      )}
                     </View>
                     {/* "..." menu button ONLY for your comments */}
-                    {c.yours && (
+                    {c.yours && !editing && (
                       <TouchableOpacity
                         style={styles.postMenuButton}
                         onPress={() => {
@@ -280,6 +355,7 @@ export default function PostDetail() {
                 visible={menuVisible}
                 transparent
                 onRequestClose = {() => setMenuVisible(false)}
+                animationType="slide"
               >
                 <TouchableOpacity style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
                   <View style={styles.modalContent}>
@@ -295,6 +371,51 @@ export default function PostDetail() {
                   </View>
                 </TouchableOpacity>
               </Modal>
+              {/* Modal for edit history */}
+              <Modal
+                visible={editHistoryModalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setEditHistoryModalVisible(false)}
+              >
+                <TouchableWithoutFeedback onPress={() => setEditHistoryModalVisible(false)}>
+                  <View style={{
+                    flex: 1,
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    justifyContent: "center",
+                    padding: 20,
+                  }}>
+                    <TouchableWithoutFeedback>
+                      <View style={{
+                        backgroundColor: "#fff",
+                        borderRadius: 10,
+                        padding: 20,
+                        maxHeight: "70%",
+                      }}>
+                        <ScrollView>
+                          {(() => {
+                            const comment = commentsList.find(x => x.id === selectedComment);
+                            return comment?.edits?.map((text, idx) => (
+                              <View
+                                key={idx}
+                                style={{
+                                  backgroundColor: "#f7f7f7",
+                                  padding: 12,
+                                  borderRadius: 8,
+                                  marginBottom: 12,
+                                }}
+                              >
+                                <Text style={{ color: "#444" }}>{text}</Text>
+                              </View>
+                            ));
+                          })()}
+                        </ScrollView>
+                      </View>
+                    </TouchableWithoutFeedback>
+                  </View>
+                </TouchableWithoutFeedback>
+              </Modal>
+
             </View>
           </View>
         </ScrollView>
