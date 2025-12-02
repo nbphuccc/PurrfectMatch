@@ -228,7 +228,7 @@ export default function Profile() {
     setMenuVisible(false);
   };
 
-  const handleMenuOption = async (option: "Edit" | "Delete" | "Hide") => {
+  const handleMenuOption = async (option: "Edit" | "Delete") => {
     if (!selectedPost) return;
     console.log(`${option} clicked for post: ${selectedPost.postId}`);
 
@@ -508,7 +508,7 @@ export default function Profile() {
                               // You could set state to show a modal/action sheet here
                             }}
                           >
-                            <Text style={styles.postMenuText}>…</Text>
+                            <Text style={styles.postMenuText}>⋮</Text>
                           </TouchableOpacity>
 
                           <View style={styles.postHeader}>
@@ -541,10 +541,10 @@ export default function Profile() {
                     >
                       <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
                         <View style={styles.modalContent}>
-                          {["Edit", "Delete", "Hide"].map((option) => (
+                          {["Edit", "Delete"].map((option) => (
                             <TouchableOpacity
                               key={option}
-                              onPress={() => handleMenuOption(option as "Edit" | "Delete" | "Hide")}
+                              onPress={() => handleMenuOption(option as "Edit" | "Delete")}
                               style={styles.modalOption}
                             >
                               <Text style={styles.modalOptionText}>{option}</Text>
@@ -595,7 +595,7 @@ export default function Profile() {
                               // You could set state to show a modal/action sheet here
                             }}
                           >
-                            <Text style={styles.postMenuText}>…</Text>
+                            <Text style={styles.postMenuText}>⋮</Text>
                           </TouchableOpacity>
                           <Text style={styles.playdateTitle}>{playdate.title}</Text>
                           <View style={styles.playdateInfo}>
@@ -628,10 +628,10 @@ export default function Profile() {
                     >
                       <TouchableOpacity style={styles.modalOverlay} onPress={closeMenu}>
                         <View style={styles.modalContent}>
-                          {["Edit", "Delete", "Hide"].map((option) => (
+                          {["Edit", "Delete"].map((option) => (
                             <TouchableOpacity
                               key={option}
-                              onPress={() => handleMenuOption(option as "Edit" | "Delete" | "Hide")}
+                              onPress={() => handleMenuOption(option as "Edit" | "Delete")}
                               style={styles.modalOption}
                             >
                               <Text style={styles.modalOptionText}>{option}</Text>
