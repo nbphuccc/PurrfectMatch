@@ -632,7 +632,7 @@ export default function PlaydateScreen() {
 
             <Text style={styles.label}>Time (required):</Text>
             <TouchableOpacity
-              onPress={() => setShowTimePicker(true)}
+              onPress={() => setShowTimePicker(prev => !prev)}
               style={[styles.input, errors.time && styles.errorInput, { justifyContent: "center" }]}
             >
               <Text style={{ color: formData.time ? "#000" : "#999" }}>
@@ -669,6 +669,7 @@ export default function PlaydateScreen() {
               placeholder="YYYY-MM-DD"
               value={formData.date}
               onChangeText={(text) => handleInputChange("date", text)}
+              onFocus={() => setShowTimePicker(false)} 
             />
 
             <Text style={styles.label}>Pet Breed (required):</Text>
