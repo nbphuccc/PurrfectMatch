@@ -78,7 +78,7 @@ Scan the QR code that appears in the terminal using Expo Go on your phone.
     - **app/**: App screens and navigation
     - **assets/**: images, icons
     - **components/**: reusable UI components
-    - **tests/**: frontend tests (`*.test.tsx`)
+    - **_tests_/**: frontend tests (`*.test.js`)
 
 
 ## Reporting Bugs

@@ -55,3 +55,21 @@ jest.mock('firebase/storage', () => ({
   uploadBytes: jest.fn(() => Promise.resolve()),
   getDownloadURL: jest.fn(() => Promise.resolve()),
 }));
+
+// Quiet noisy console output from app code during tests. Tests can still assert logs by
+// temporarily restoring console methods inside individual tests if needed.
+beforeAll(() => {
+  // preserve originals in case tests want to inspect them
+  global.__real_console = { ...console };
+  console.log = jest.fn();
+  console.error = jest.fn();
+  console.warn = jest.fn();
+});
+afterAll(() => {
+  if (global.__real_console) {
+    console.log = global.__real_console.log;
+    console.error = global.__real_console.error;
+    console.warn = global.__real_console.warn;
+    delete global.__real_console;
+  }
+});
