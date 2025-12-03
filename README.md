@@ -122,7 +122,8 @@ Additional Notes:
 Any other context that might help identify the issue.
 
 ```
-
+## Ask Deepwiki to learn more about our repo in details
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nbphuccc/PurrfectMatch)
 ## Documentation  
   - **Living Document** https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.ypct95m4pes8
   - **User Manual Google Doc** - https://docs.google.com/document/d/1UyGKCmjU4S7Y3MQkD8P3KaTdfpmO1xyd4bRpTTp9g9A/edit?tab=t.xhk44xm02hj6
