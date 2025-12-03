@@ -51,6 +51,7 @@ export default function PostDetail() {
   const [editing, setEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
+  const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<CommunityPostFirebase | null>(null);
 
   const router = useRouter();
@@ -257,7 +258,20 @@ export default function PostDetail() {
           {/* Meta info */}
           <Text style={styles.meta}>{post?.petType ?? ''} • {post?.category ?? ''}</Text>
           {/* Description */}
-          <Text style={styles.description}>{post?.description ?? ''}</Text>
+          <Text style={styles.description}>
+            {post?.description ?? ''}
+            {post?.edits && post.edits.length > 0 && (
+              <Text
+                onPress={() => {
+                  setSelectedEdits(post.edits ?? []);
+                  setEditHistoryModalVisible(true);
+                }}
+                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+              >
+                (edited)
+              </Text>
+            )}
+          </Text>
           {post?.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.image} /> : null}
           
           <View style={{ marginTop: 30 }}>
@@ -314,18 +328,7 @@ export default function PostDetail() {
                         <Text style={{ color: '#666', fontSize: 12 }}>
                           {formatTimeValue(c.createdAt.toISOString())}
                         </Text>
-                        {c.edits && c.edits.length > 0 && (
-                          <TouchableOpacity
-                            onPress={() => {
-                              setSelectedComment(c.id);
-                              setEditHistoryModalVisible(true);
-                            }}
-                          >
-                            <Text style={{ color: '#666', fontSize: 12, marginLeft: 4 }}>
-                              (edited)
-                            </Text>
-                          </TouchableOpacity>
-                        )}
+                        
                       </View>
                       {/* Editing View */}
                       {editing && selectedComment === c.id ? (
@@ -357,7 +360,21 @@ export default function PostDetail() {
                         </View>
                       ) : (
                         /* Normal non-editing text */
-                        <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                        <Text style={{ marginTop: 4 }}>
+                          {c.content}
+                          {c.edits && c.edits.length > 0 && (
+                            <Text
+                              onPress={() => {
+                                setSelectedComment(c.id);
+                                setSelectedEdits(c.edits ?? []);
+                                setEditHistoryModalVisible(true);
+                              }}
+                              style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+                            >
+                              (edited)
+                            </Text>
+                          )}
+                        </Text>
                       )}
                     </View>
                     {/* "..." menu button ONLY for your comments */}
@@ -399,47 +416,49 @@ export default function PostDetail() {
               {/* Modal for edit history */}
               <Modal
                 visible={editHistoryModalVisible}
-                transparent={true}
+                transparent
                 animationType="slide"
                 onRequestClose={() => setEditHistoryModalVisible(false)}
               >
                 <TouchableWithoutFeedback onPress={() => setEditHistoryModalVisible(false)}>
-                  <View style={{
-                    flex: 1,
-                    backgroundColor: "rgba(0,0,0,0.5)",
-                    justifyContent: "center",
-                    padding: 20,
-                  }}>
+                  <View
+                    style={{
+                      flex: 1,
+                      backgroundColor: "rgba(0,0,0,0.5)",
+                      justifyContent: "center",
+                      padding: 20,
+                    }}
+                  >
                     <TouchableWithoutFeedback>
-                      <View style={{
-                        backgroundColor: "#fff",
-                        borderRadius: 10,
-                        padding: 20,
-                        maxHeight: "70%",
-                      }}>
+                      <View
+                        style={{
+                          backgroundColor: "#fff",
+                          borderRadius: 10,
+                          padding: 20,
+                          maxHeight: "70%",
+                        }}
+                      >
                         <ScrollView>
-                          {(() => {
-                            const comment = commentsList.find(x => x.id === selectedComment);
-                            return comment?.edits?.map((text, idx) => (
-                              <View
-                                key={idx}
-                                style={{
-                                  backgroundColor: "#f7f7f7",
-                                  padding: 12,
-                                  borderRadius: 8,
-                                  marginBottom: 12,
-                                }}
-                              >
-                                <Text style={{ color: "#444" }}>{text}</Text>
-                              </View>
-                            ));
-                          })()}
+                          {selectedEdits?.map((text, idx) => (
+                            <View
+                              key={idx}
+                              style={{
+                                backgroundColor: "#f7f7f7",
+                                padding: 12,
+                                borderRadius: 8,
+                                marginBottom: 12,
+                              }}
+                            >
+                              <Text style={{ color: "#444" }}>{text}</Text>
+                            </View>
+                          ))}
                         </ScrollView>
                       </View>
                     </TouchableWithoutFeedback>
                   </View>
                 </TouchableWithoutFeedback>
               </Modal>
+
 
             </View>
           </View>

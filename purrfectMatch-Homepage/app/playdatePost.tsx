@@ -78,6 +78,7 @@ export default function PlaydatePost() {
   const [editing, setEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
+  const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<PlaydatePostFirebase | null>(null);
 
   const router = useRouter();
@@ -342,7 +343,20 @@ export default function PlaydatePost() {
             )}
           </View>
 
-          <Text style={styles.description}>{post?.description}</Text>
+          <Text style={styles.description}>
+            {post?.description ?? ''}
+            {post?.edits && post.edits.length > 0 && (
+              <Text
+                onPress={() => {
+                  setSelectedEdits(post.edits ?? []);
+                  setEditHistoryModalVisible(true);
+                }}
+                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+              >
+                (edited)
+              </Text>
+            )}
+          </Text>
         </View>
 
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
@@ -387,19 +401,7 @@ export default function PlaydatePost() {
                       <Text style={styles.commentUsername}>{c.username}</Text>
                     </TouchableOpacity>
                     <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
-                    {/* Show (edited) if edits exist */}
-                    {c.edits && c.edits.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          setSelectedComment(c.id);
-                          setEditHistoryModalVisible(true);
-                        }}
-                      >
-                        <Text style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>
-                          (edited)
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                    
                   </View>
                   {/* Editing view */}
                   {editing && selectedComment === c.id ? (
@@ -431,7 +433,21 @@ export default function PlaydatePost() {
                     </View>
                   ) : (
                     /* Normal non-editing text */
-                    <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                    <Text style={{ marginTop: 4 }}>
+                      {c.content}
+                      {c.edits && c.edits.length > 0 && (
+                        <Text
+                          onPress={() => {
+                            setSelectedComment(c.id);
+                            setSelectedEdits(c.edits ?? []);
+                            setEditHistoryModalVisible(true);
+                          }}
+                          style={{ color: "#666", fontSize: 10}}
+                        >
+                          (edited)
+                        </Text>
+                      )}
+                    </Text>
                   )}
 
                 </View>
@@ -474,47 +490,49 @@ export default function PlaydatePost() {
           {/* Modal for edit history */}
           <Modal
             visible={editHistoryModalVisible}
-            transparent={true}
+            transparent
             animationType="slide"
             onRequestClose={() => setEditHistoryModalVisible(false)}
           >
             <TouchableWithoutFeedback onPress={() => setEditHistoryModalVisible(false)}>
-              <View style={{
-                flex: 1,
-                backgroundColor: "rgba(0,0,0,0.5)",
-                justifyContent: "center",
-                padding: 20,
-              }}>
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  justifyContent: "center",
+                  padding: 20,
+                }}
+              >
                 <TouchableWithoutFeedback>
-                  <View style={{
-                    backgroundColor: "#fff",
-                    borderRadius: 10,
-                    padding: 20,
-                    maxHeight: "70%",
-                  }}>
+                  <View
+                    style={{
+                      backgroundColor: "#fff",
+                      borderRadius: 10,
+                      padding: 20,
+                      maxHeight: "70%",
+                    }}
+                  >
                     <ScrollView>
-                      {(() => {
-                        const comment = comments.find(x => x.id === selectedComment);
-                        return comment?.edits?.map((text: string, idx: number) => (
-                          <View
-                            key={idx}
-                            style={{
-                              backgroundColor: "#f7f7f7",
-                              padding: 12,
-                              borderRadius: 8,
-                              marginBottom: 12,
-                            }}
-                          >
-                            <Text style={{ color: "#444" }}>{text}</Text>
-                          </View>
-                        ));
-                      })()}
+                      {selectedEdits?.map((text, idx) => (
+                        <View
+                          key={idx}
+                          style={{
+                            backgroundColor: "#f7f7f7",
+                            padding: 12,
+                            borderRadius: 8,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <Text style={{ color: "#444" }}>{text}</Text>
+                        </View>
+                      ))}
                     </ScrollView>
                   </View>
                 </TouchableWithoutFeedback>
               </View>
             </TouchableWithoutFeedback>
           </Modal>
+
         </View>
 
         <View style={{ height: 100 }} />
