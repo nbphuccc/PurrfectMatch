@@ -22,6 +22,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
 import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import {timeAgo} from "../playdatePost";
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
@@ -34,7 +35,7 @@ type CardPost = {
   authorId: string     
   user: string;
   avatar: string;
-  time: string;
+  time: Date;
   title: string;
   city: string;
   state: string;
@@ -112,8 +113,6 @@ export default function PlaydateScreen() {
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-
-
 
   const dynamicCardWidth = width > 900 ? 800 : width > 600 ? 550 : "100%";
 
@@ -387,7 +386,7 @@ export default function PlaydateScreen() {
             authorId: post.authorId,
             user: post.username,
             avatar: profile?.avatar || "",
-            time: post.createdAt.toLocaleString(),
+            time: post.createdAt,
             title: post.title,
             city: post.city,
             state: post.state,
@@ -531,24 +530,7 @@ export default function PlaydateScreen() {
                   key={post.id}
                   style={[styles.card, { width: dynamicCardWidth }]}
                   onPress={() =>
-                    router.push({
-                      pathname: "/playdatePost",
-                      params: {
-                        id: post.id,
-                        authorId: post.authorId,
-                        title: post.title,
-                        user: post.user,
-                        time: post.time,
-                        description: post.description,
-                        location: `${post.city}, ${post.state}`,
-                        date: post.whenAt,
-                        image: post.image ? encodeURIComponent(post.image) : "",
-                        address: post.address ?? "",
-                        city: post.city,
-                        state: post.state,
-                        zip: post.zip ?? "",
-                      },
-                    })
+                    router.push({pathname: "/playdatePost", params: {id: post.id}})
                   }
                 >
                   <View style={styles.cardHeader}>
@@ -560,7 +542,7 @@ export default function PlaydateScreen() {
                       <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
                         <Text style={styles.username}>{post.user}</Text>
                       </TouchableOpacity>
-                      <Text style={styles.time}>{post.time}</Text>
+                      <Text style={styles.time}>{timeAgo(post.time)}</Text>
                     </View>
                   </View>
 

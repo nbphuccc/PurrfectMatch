@@ -60,6 +60,39 @@ export async function createCommunityPostFirebase(post: {
   }
 }
 
+export async function getCommunityPostFirebase(postId: string): Promise<CommunityPostFirebase | null> {
+  try {
+    const ref = doc(db, "community_posts", postId);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      return null;
+    }
+
+    const data = snap.data();
+
+    const post: CommunityPostFirebase = {
+      authorId: data.authorId,
+      username: data.username,
+      petType: data.petType,
+      category: data.category,
+      description: data.description,
+      edits: data.edits ?? [],
+      imageUrl: data.imageUrl ?? null,
+      likes: data.likes ?? 0,
+      comments: data.comments ?? 0,
+      createdAt: data.createdAt?.toDate
+        ? data.createdAt.toDate()
+        : new Date(data.createdAt),
+    };
+
+    return post;
+  } catch (err) {
+    console.error("Error fetching community post:", err);
+    return null;
+  }
+}
+
 export async function listCommunityPostsFirebase(params?: { 
   petType?: string; 
   category?: string;

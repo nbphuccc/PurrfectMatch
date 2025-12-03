@@ -504,19 +504,7 @@ export default function Profile() {
                         key={post.id}
                         activeOpacity={0.8}
                         onPress={() => {
-                          router.push({
-                            pathname: '../communityPost',
-                            params: {
-                              id: post.id,
-                              user: post.username,
-                              authorId: post.authorId,
-                              time: post.createdAt.toISOString() ?? '',
-                              petType: post.petType,
-                              category: post.category,
-                              description: post.description,
-                              image: post.imageUrl ? encodeURIComponent(post.imageUrl) : '',
-                            },
-                          });
+                          router.push({pathname: '../communityPost', params: {id: post.id}});
                         }}
                       >
                         <View style={styles.postCard}>
@@ -621,24 +609,7 @@ export default function Profile() {
                         key={playdate.id}
                         activeOpacity={0.8}
                         onPress={() =>
-                          router.push({
-                            pathname: "/playdatePost",
-                            params: {
-                              id: playdate.id,
-                              authorId: playdate.authorId,
-                              title: playdate.title,
-                              user: playdate.username,
-                              time: playdate.createdAt.toLocaleString(),
-                              description: playdate.description,
-                              location: `${playdate.city}, ${playdate.state}`,
-                              date: playdate.whenAt,
-                              image: playdate.imageUrl ? encodeURIComponent(playdate.imageUrl) : "",
-                              address: playdate.address ?? "",
-                              city: playdate.city,
-                              state: playdate.state,
-                              zip: playdate.zip ?? "",
-                            },
-                          })
+                          router.push({pathname: "/playdatePost", params: {id: playdate.id}})
                         }
                       >
                         <View style={styles.postCard}>

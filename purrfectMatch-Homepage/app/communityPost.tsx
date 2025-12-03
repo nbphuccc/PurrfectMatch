@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase } from '../api/community';
+import { CommunityPostFirebase, getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase, getCommunityPostFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
@@ -51,10 +51,35 @@ export default function PostDetail() {
   const [editing, setEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
+  const [post, setPost] = useState<CommunityPostFirebase | null>(null);
 
   const router = useRouter();
 
-  const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
+  //const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
+  const id = params.id as string | undefined;
+
+  useEffect(() => {
+    if (!id) return;
+
+    let isMounted = true;
+
+    const loadPost = async () => {
+      try {
+        setLoading(true);
+        const data = await getCommunityPostFirebase(id);
+        if (isMounted) setPost(data);
+      } catch (err) {
+        console.error("Failed to load post:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadPost();
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -64,12 +89,12 @@ export default function PostDetail() {
 
   const loadComments = useCallback(
     async () => {
-      if (!id || !authorId) return;
+      if (!id || !post?.authorId) return;
 
       setLoading(true);
       try {
         // Load post author's avatar
-        const authorProfile = await getUserProfileFirebase(authorId);
+        const authorProfile = await getUserProfileFirebase(post.authorId);
         setPostAvatarUrl(authorProfile?.avatar || null);
 
         console.log("Loading comments from Firebase for post:", id);
@@ -105,14 +130,14 @@ export default function PostDetail() {
         setLoading(false);
       }
     },
-    [authorId, id]
+    [post?.authorId, id]
   );
 
   useEffect(() => {
     loadComments();
   }, [loadComments]);
 
-  const displayedTime = formatTimeValue(time);
+  const displayedTime = formatTimeValue(post?.createdAt.toISOString());
 
   const handlePostComment = async () => {
     const trimmed = comment.trim();
@@ -210,7 +235,7 @@ export default function PostDetail() {
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]}>
           <View style={styles.cardHeader}>
             {/* Avatar */}
-            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
               <Image
                 source={{
                   uri:
@@ -222,18 +247,18 @@ export default function PostDetail() {
             </TouchableOpacity>
             {/* User info */}
             <View style={{ marginLeft: 12 }}>
-              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
-                <Text style={styles.user}>{user ?? 'Unknown'}</Text>
+              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
+                <Text style={styles.user}>{post?.username ?? 'Unknown'}</Text>
               </TouchableOpacity>
               <Text style={styles.time}>{displayedTime}</Text>
             </View>
           </View>
 
           {/* Meta info */}
-          <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
+          <Text style={styles.meta}>{post?.petType ?? ''} • {post?.category ?? ''}</Text>
           {/* Description */}
-          <Text style={styles.description}>{description ?? ''}</Text>
-          {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+          <Text style={styles.description}>{post?.description ?? ''}</Text>
+          {post?.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.image} /> : null}
           
           <View style={{ marginTop: 30 }}>
             <View style={styles.commentInputRow}>
