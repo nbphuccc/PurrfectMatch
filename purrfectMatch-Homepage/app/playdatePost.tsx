@@ -24,8 +24,9 @@ import {
   editPlaydateCommentFirebase,
   getPlaydatePostFirebase,
 } from "../api/playdates";
+import { MapLocation } from "./(tabs)/PlayDate";
 import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Circle } from "react-native-maps";
 
 export function timeAgo(date: Date) {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -68,9 +69,9 @@ export default function PlaydatePost() {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  //const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loadingMap, setLoadingMap] = useState(false);
-  const [mapError, setMapError] = useState<string | null>(null);
+  //const [mapError, setMapError] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
@@ -129,21 +130,25 @@ export default function PlaydatePost() {
   });
 
   const openInMaps = async () => {
-    if (!coords) return;
-    const { latitude, longitude } = coords;
-    const label = post?.address?.trim() || post?.locationName || post?.title || "Playdate location";
-    const encodedLabel = encodeURIComponent(label);
-    const latLng = `${latitude},${longitude}`;
+    const address = post?.location.address?.trim();
+    if (!address) return;
+
+    const encodedAddress = encodeURIComponent(address);
 
     const url =
       Platform.OS === "ios"
-        ? `http://maps.apple.com/?ll=${latLng}&q=${encodedLabel}`
+        ? `http://maps.apple.com/?q=${encodedAddress}`
         : Platform.OS === "android"
-        ? `geo:${latLng}?q=${latLng}(${encodedLabel})`
-        : `https://www.google.com/maps/search/?api=1&query=${latLng}`;
+        ? `geo:0,0?q=${encodedAddress}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 
     try {
-      (await Linking.canOpenURL(url)) ? Linking.openURL(url) : Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latLng}`);
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
+      }
     } catch (e) {
       console.error("Failed to open maps:", e);
     }
@@ -191,6 +196,7 @@ export default function PlaydatePost() {
     loadComments();
   };
 
+  /*
   useEffect(() => {
     const fetchCoordinates = async () => {
       if (!post?.address || !post.city || !post.state) return;
@@ -225,6 +231,7 @@ export default function PlaydatePost() {
 
     fetchCoordinates();
   }, [post?.address, post?.city, post?.state, post?.zip]);
+  */
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
     console.log(`${option} clicked for post: ${selectedComment}`);
@@ -260,29 +267,101 @@ export default function PlaydatePost() {
   };
 
   const handleEditComment = async () => {
-      try {
-        if (!selectedComment) {
-          Alert.alert("Error", "No comment selected.");
-          return;
-        }
-        if (!editedContent) {
-          Alert.alert("Error", "Comment cannot be empty.");
-          return;
-        }
-  
-        const response = await editPlaydateCommentFirebase(selectedComment,editedContent);
-  
-        if (response.success) {
-          loadComments();
-          Alert.alert("Success", "Comment edited successfully.");
-        } else {
-          Alert.alert("Error", "Failed to edit comment.");
-        }
-      } catch (err) {
-        console.error(err);
+    try {
+      if (!selectedComment) {
+        Alert.alert("Error", "No comment selected.");
+        return;
+      }
+      if (!editedContent) {
+        Alert.alert("Error", "Comment cannot be empty.");
+        return;
+      }
+
+      const response = await editPlaydateCommentFirebase(selectedComment,editedContent);
+
+      if (response.success) {
+        loadComments();
+        Alert.alert("Success", "Comment edited successfully.");
+      } else {
         Alert.alert("Error", "Failed to edit comment.");
       }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Failed to edit comment.");
+    }
+  };
+
+  const isSpecificPlace = (types: string[]) => {
+      return types.some(t =>
+        [
+          "street_address",
+          "premise",
+          "subpremise",
+          "route",
+          "park",
+          "establishment",
+          "point_of_interest",
+        ].includes(t)
+      );
     };
+  
+    const getRadiusFromViewport = (
+      viewport: NonNullable<MapLocation["viewport"]>,
+      centerLat: number
+    ) => {
+      const latDiff = Math.abs(viewport.northeast.lat - viewport.southwest.lat);
+      const lngDiff = Math.abs(viewport.northeast.lng - viewport.southwest.lng);
+  
+      // Convert degrees → meters
+      const latMeters = latDiff * 111_000;
+      const lngMeters =
+        lngDiff * 111_000 * Math.cos((centerLat * Math.PI) / 180);
+  
+      // Use diagonal and divide by 2 to get radius
+      let radius = Math.sqrt(latMeters ** 2 + lngMeters ** 2) / 2.8;
+  
+      // ✅ Clamp radius to prevent absurd sizes
+      radius = Math.min(Math.max(radius, 200), 25_000); // 200m–25km
+  
+      return radius;
+    };
+  
+    const getRegionFromViewport = (
+      viewport: NonNullable<MapLocation["viewport"]>
+    ) => {
+      const latitudeDelta =
+        Math.abs(viewport.northeast.lat - viewport.southwest.lat) * 1.5; // padding
+      const longitudeDelta =
+        Math.abs(viewport.northeast.lng - viewport.southwest.lng) * 1.5;
+      
+      return { latitudeDelta, longitudeDelta };
+    };
+
+  const isPin = post?.location
+    ? isSpecificPlace(post.location.types)
+    : true;
+
+  const dynamicRegion = post?.location
+    ? isPin
+      ? {
+          latitude: post.location.latitude,
+          longitude: post.location.longitude,
+          latitudeDelta: 0.02,   // ✅ tight zoom for exact place
+          longitudeDelta: 0.02,
+        }
+      : post.location.viewport
+      ? {
+          latitude: post.location.latitude,
+          longitude: post.location.longitude,
+          ...getRegionFromViewport(post.location.viewport), // ✅ zoom out for area
+        }
+      : {
+          latitude: post.location.latitude,
+          longitude: post.location.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }
+    : undefined;
 
   return (
     <KeyboardAvoidingView
@@ -315,24 +394,41 @@ export default function PlaydatePost() {
 
           <View style={{ marginTop: 12 }}>
             {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
-            {mapError && <Text style={{ color: "#999" }}>{mapError}</Text>}
-            {coords && (
-              <TouchableOpacity activeOpacity={0.9} onPress={openInMaps} style={styles.mapTouchable}>
+
+            {post?.location && (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={openInMaps}
+                style={styles.mapTouchable}
+              >
                 <MapView
-                  style={styles.map}
-                  pointerEvents="none"
+                  style={{ flex: 1 }}
+                  initialRegion={dynamicRegion}
+                  region={dynamicRegion}
                   scrollEnabled={false}
                   zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}
-                  initialRegion={{
-                    latitude: coords.latitude,
-                    longitude: coords.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
                 >
-                  <Marker coordinate={coords} />
+                  {isSpecificPlace(post.location.types ?? []) ? (
+                    <Marker
+                      coordinate={{
+                        latitude: post.location.latitude ?? 0,
+                        longitude: post.location.longitude ?? 0,
+                      }}
+                    />
+                  ) : post.location.viewport ? (
+                    <Circle
+                      center={{
+                        latitude: post.location.latitude,
+                        longitude: post.location.longitude,
+                      }}
+                      radius={getRadiusFromViewport(
+                        post.location.viewport,
+                        post.location.latitude
+                      )}
+                      strokeWidth={1}
+                      fillColor="rgba(0,122,255,0.15)"
+                    />
+                  ) : null}
                 </MapView>
 
                 <View style={styles.mapBadge}>
@@ -632,7 +728,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
   },
-  mapTouchable: { marginTop: 10, borderRadius: 12, overflow: "hidden" },
+  mapTouchable: { marginTop: 10, borderRadius: 12, overflow: "hidden", height: 200 },
 
   mapBadge: {
     position: "absolute",

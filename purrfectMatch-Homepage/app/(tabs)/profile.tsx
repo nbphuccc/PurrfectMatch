@@ -662,7 +662,7 @@ export default function Profile() {
                           )}
                           <View style={styles.playdateDetails}>
                             <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
-                            <Text style={styles.playdateDetailText}>{playdate.place}</Text>
+                            <Text style={styles.playdateDetailText}>{playdate.city}</Text>
                           </View>
                           {playdate.imageUrl && (
                             <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
