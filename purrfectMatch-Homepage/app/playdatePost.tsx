@@ -17,15 +17,17 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  PlaydatePostFirebase,
   getPlaydateCommentsFirebase,
   addPlaydateCommentFirebase,
   deletePlaydateCommentFirebase,
   editPlaydateCommentFirebase,
+  getPlaydatePostFirebase,
 } from "../api/playdates";
 import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
 import MapView, { Marker } from "react-native-maps";
 
-function timeAgo(date: Date) {
+export function timeAgo(date: Date) {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
@@ -39,9 +41,11 @@ function timeAgo(date: Date) {
 export default function PlaydatePost() {
   const params = useLocalSearchParams();
 
-  const getParamString = (value: string | string[] | undefined): string | undefined =>
-    Array.isArray(value) ? value[0] : typeof value === "string" ? value : undefined;
+  //const getParamString = (value: string | string[] | undefined): string | undefined =>
+    //Array.isArray(value) ? value[0] : typeof value === "string" ? value : undefined;
 
+  const postId = params.id as string | undefined;
+  /*
   const postId = getParamString(params.id) || "";
   const authorId = getParamString(params.authorId) || "";
   const title = getParamString(params.title) || "Playdate";
@@ -59,6 +63,7 @@ export default function PlaydatePost() {
 
   const rawImage = getParamString(params.image);
   const image = rawImage || undefined;
+  */
 
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
@@ -73,13 +78,38 @@ export default function PlaydatePost() {
   const [editing, setEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
+  const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
+  const [post, setPost] = useState<PlaydatePostFirebase | null>(null);
 
   const router = useRouter();
 
   useEffect(() => {
+    if (!postId) return;
+
+    let isMounted = true;
+
+    const loadPost = async () => {
+      try {
+        setLoadingMap(true);
+        const data = await getPlaydatePostFirebase(postId);
+        if (isMounted) setPost(data);
+      } catch (err) {
+        console.error("Failed to load post:", err);
+      } finally {
+        if (isMounted) setLoadingMap(false);
+      }
+    };
+
+    loadPost();
+    return () => {
+      isMounted = false;
+    };
+  }, [postId]);
+
+  useEffect(() => {
     const fetchAvatar = async () => {
       try {
-        const authorProfile = await getUserProfileFirebase(authorId);
+        const authorProfile = await getUserProfileFirebase(post?.authorId || "");
         setPostAvatarUrl(authorProfile?.avatar || null);
         const currentUser = getCurrentUser();
         if (!currentUser) {
@@ -93,7 +123,7 @@ export default function PlaydatePost() {
       }
     };
 
-    if (authorId) {
+    if (post?.authorId) {
       fetchAvatar();
     }
   });
@@ -101,7 +131,7 @@ export default function PlaydatePost() {
   const openInMaps = async () => {
     if (!coords) return;
     const { latitude, longitude } = coords;
-    const label = address?.trim() || location || title || "Playdate location";
+    const label = post?.address?.trim() || post?.locationName || post?.title || "Playdate location";
     const encodedLabel = encodeURIComponent(label);
     const latLng = `${latitude},${longitude}`;
 
@@ -145,9 +175,13 @@ export default function PlaydatePost() {
   const handlePostComment = async () => {
     const currentUser = getCurrentUser();
     if (!currentUser || !comment.trim()) return;
+    if (!postId) {
+      Alert.alert("Error", "Post ID is missing.");
+      return;
+    }
 
     await addPlaydateCommentFirebase({
-      postId,
+      postId: postId,
       authorId: currentUser.uid,
       username: currentUser.displayName || "User",
       content: comment.trim(),
@@ -159,9 +193,9 @@ export default function PlaydatePost() {
 
   useEffect(() => {
     const fetchCoordinates = async () => {
-      if (!address || !city || !state) return;
+      if (!post?.address || !post.city || !post.state) return;
 
-      const fullAddress = `${address}, ${city}, ${state} ${zip ?? ""}`;
+      const fullAddress = `${post.address}, ${post.city}, ${post.state} ${post.zip ?? ""}`;
       setLoadingMap(true);
       setMapError(null);
 
@@ -190,10 +224,14 @@ export default function PlaydatePost() {
     };
 
     fetchCoordinates();
-  }, [address, city, state, zip]);
+  }, [post?.address, post?.city, post?.state, post?.zip]);
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
     console.log(`${option} clicked for post: ${selectedComment}`);
+    if (!postId) {
+      Alert.alert("Error", "Post ID is missing.");
+      return;
+    }
 
     if (option === "Delete") {
       try {
@@ -255,25 +293,25 @@ export default function PlaydatePost() {
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
               <Image
                 source={{ uri: postAvatarUrl || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
                 style={styles.profilePic}
               />
             </TouchableOpacity>
             <View>
-              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
-                <Text style={styles.username}>{username}</Text>
+              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
+                <Text style={styles.username}>{post?.username}</Text>
               </TouchableOpacity>
-              <Text style={styles.time}>{time}</Text>
+              <Text style={styles.time}>{timeAgo(post?.createdAt ?? new Date())}</Text>
             </View>
           </View>
 
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{location}</Text>
-          <Text style={styles.subtitle}>{date}</Text>
+          <Text style={styles.title}>{post?.title}</Text>
+          <Text style={styles.subtitle}>{post?.locationName}</Text>
+          <Text style={styles.subtitle}>{post?.whenAt}</Text>
 
-          {image && <Image source={{ uri: image }} style={styles.image} />}
+          {post?.imageUrl && <Image source={{ uri: post.imageUrl }} style={styles.image} />}
 
           <View style={{ marginTop: 12 }}>
             {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
@@ -305,7 +343,20 @@ export default function PlaydatePost() {
             )}
           </View>
 
-          <Text style={styles.description}>{description}</Text>
+          <Text style={styles.description}>
+            {post?.description ?? ''}
+            {post?.edits && post.edits.length > 0 && (
+              <Text
+                onPress={() => {
+                  setSelectedEdits(post.edits ?? []);
+                  setEditHistoryModalVisible(true);
+                }}
+                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+              >
+                (edited)
+              </Text>
+            )}
+          </Text>
         </View>
 
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
@@ -350,19 +401,7 @@ export default function PlaydatePost() {
                       <Text style={styles.commentUsername}>{c.username}</Text>
                     </TouchableOpacity>
                     <Text style={styles.commentTime}>{timeAgo(c.createdAt)}</Text>
-                    {/* Show (edited) if edits exist */}
-                    {c.edits && c.edits.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          setSelectedComment(c.id);
-                          setEditHistoryModalVisible(true);
-                        }}
-                      >
-                        <Text style={{ color: '#666', fontSize: 12, marginBottom: 4 }}>
-                          (edited)
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                    
                   </View>
                   {/* Editing view */}
                   {editing && selectedComment === c.id ? (
@@ -394,7 +433,21 @@ export default function PlaydatePost() {
                     </View>
                   ) : (
                     /* Normal non-editing text */
-                    <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                    <Text style={{ marginTop: 4 }}>
+                      {c.content}
+                      {c.edits && c.edits.length > 0 && (
+                        <Text
+                          onPress={() => {
+                            setSelectedComment(c.id);
+                            setSelectedEdits(c.edits ?? []);
+                            setEditHistoryModalVisible(true);
+                          }}
+                          style={{ color: "#666", fontSize: 10}}
+                        >
+                          (edited)
+                        </Text>
+                      )}
+                    </Text>
                   )}
 
                 </View>
@@ -437,47 +490,49 @@ export default function PlaydatePost() {
           {/* Modal for edit history */}
           <Modal
             visible={editHistoryModalVisible}
-            transparent={true}
+            transparent
             animationType="slide"
             onRequestClose={() => setEditHistoryModalVisible(false)}
           >
             <TouchableWithoutFeedback onPress={() => setEditHistoryModalVisible(false)}>
-              <View style={{
-                flex: 1,
-                backgroundColor: "rgba(0,0,0,0.5)",
-                justifyContent: "center",
-                padding: 20,
-              }}>
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  justifyContent: "center",
+                  padding: 20,
+                }}
+              >
                 <TouchableWithoutFeedback>
-                  <View style={{
-                    backgroundColor: "#fff",
-                    borderRadius: 10,
-                    padding: 20,
-                    maxHeight: "70%",
-                  }}>
+                  <View
+                    style={{
+                      backgroundColor: "#fff",
+                      borderRadius: 10,
+                      padding: 20,
+                      maxHeight: "70%",
+                    }}
+                  >
                     <ScrollView>
-                      {(() => {
-                        const comment = comments.find(x => x.id === selectedComment);
-                        return comment?.edits?.map((text: string, idx: number) => (
-                          <View
-                            key={idx}
-                            style={{
-                              backgroundColor: "#f7f7f7",
-                              padding: 12,
-                              borderRadius: 8,
-                              marginBottom: 12,
-                            }}
-                          >
-                            <Text style={{ color: "#444" }}>{text}</Text>
-                          </View>
-                        ));
-                      })()}
+                      {selectedEdits?.map((text, idx) => (
+                        <View
+                          key={idx}
+                          style={{
+                            backgroundColor: "#f7f7f7",
+                            padding: 12,
+                            borderRadius: 8,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <Text style={{ color: "#444" }}>{text}</Text>
+                        </View>
+                      ))}
                     </ScrollView>
                   </View>
                 </TouchableWithoutFeedback>
               </View>
             </TouchableWithoutFeedback>
           </Modal>
+
         </View>
 
         <View style={{ height: 100 }} />

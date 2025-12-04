@@ -331,19 +331,7 @@ export default function CommunityScreen() {
                 <TouchableOpacity
                   activeOpacity={0.8}
                   onPress={() => {
-                    router.push({
-                      pathname: '../communityPost',
-                      params: {
-                        id: post.firebaseId,
-                        user: post.user,
-                        authorId: post.authorId,
-                        time: post.created_at ?? '',
-                        petType: post.petType,
-                        category: post.category,
-                        description: post.description,
-                        image: post.image ? encodeURIComponent(post.image) : '',
-                      },
-                    });
+                    router.push({pathname: '../communityPost',params: {id: post.firebaseId}});
                   }}
                 >
                   <View style={styles.cardHeader}>

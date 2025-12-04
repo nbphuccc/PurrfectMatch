@@ -24,6 +24,7 @@ export interface PlaydatePostFirebase {
   username: string;
   title: string;
   description: string;
+  edits?: string[];
   dogBreed: string;
   address: string;
   city: string;
@@ -57,6 +58,49 @@ export async function createPlaydateFirebase(
   } catch (error) {
     console.error("Error creating playdate in Firebase:", error);
     throw error;
+  }
+}
+
+export async function getPlaydatePostFirebase(postId: string): Promise<PlaydatePostFirebase | null> {
+  try {
+    const ref = doc(db, "playdate_posts", postId);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      return null;
+    }
+
+    const data = snap.data();
+
+    const post: PlaydatePostFirebase = {
+      id: postId,
+      authorId: data.authorId,
+      username: data.username,
+      title: data.title,
+      description: data.description,
+      edits: data.edits ?? [],
+      dogBreed: data.dogBreed,
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      whenAt: data.whenAt,
+      place: data.place,
+      imageUrl: data.imageUrl ?? null,
+      createdAt: data.createdAt?.toDate
+        ? data.createdAt.toDate()
+        : new Date(data.createdAt),
+      likes: data.likes ?? 0,
+      comments: data.comments ?? 0,
+      locationName: data.locationName ?? null,
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+    };
+
+    return post;
+  } catch (err) {
+    console.error("Error fetching playdate post:", err);
+    return null;
   }
 }
 

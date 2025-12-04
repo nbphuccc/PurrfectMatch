@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase } from '../api/community';
+import { CommunityPostFirebase, getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase, getCommunityPostFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
@@ -51,10 +51,36 @@ export default function PostDetail() {
   const [editing, setEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
+  const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
+  const [post, setPost] = useState<CommunityPostFirebase | null>(null);
 
   const router = useRouter();
 
-  const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
+  //const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
+  const id = params.id as string | undefined;
+
+  useEffect(() => {
+    if (!id) return;
+
+    let isMounted = true;
+
+    const loadPost = async () => {
+      try {
+        setLoading(true);
+        const data = await getCommunityPostFirebase(id);
+        if (isMounted) setPost(data);
+      } catch (err) {
+        console.error("Failed to load post:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    loadPost();
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -64,12 +90,12 @@ export default function PostDetail() {
 
   const loadComments = useCallback(
     async () => {
-      if (!id || !authorId) return;
+      if (!id || !post?.authorId) return;
 
       setLoading(true);
       try {
         // Load post author's avatar
-        const authorProfile = await getUserProfileFirebase(authorId);
+        const authorProfile = await getUserProfileFirebase(post.authorId);
         setPostAvatarUrl(authorProfile?.avatar || null);
 
         console.log("Loading comments from Firebase for post:", id);
@@ -105,14 +131,14 @@ export default function PostDetail() {
         setLoading(false);
       }
     },
-    [authorId, id]
+    [post?.authorId, id]
   );
 
   useEffect(() => {
     loadComments();
   }, [loadComments]);
 
-  const displayedTime = formatTimeValue(time);
+  const displayedTime = formatTimeValue(post?.createdAt.toISOString());
 
   const handlePostComment = async () => {
     const trimmed = comment.trim();
@@ -210,7 +236,7 @@ export default function PostDetail() {
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]}>
           <View style={styles.cardHeader}>
             {/* Avatar */}
-            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
+            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
               <Image
                 source={{
                   uri:
@@ -222,18 +248,31 @@ export default function PostDetail() {
             </TouchableOpacity>
             {/* User info */}
             <View style={{ marginLeft: 12 }}>
-              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: authorId } })}>
-                <Text style={styles.user}>{user ?? 'Unknown'}</Text>
+              <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
+                <Text style={styles.user}>{post?.username ?? 'Unknown'}</Text>
               </TouchableOpacity>
               <Text style={styles.time}>{displayedTime}</Text>
             </View>
           </View>
 
           {/* Meta info */}
-          <Text style={styles.meta}>{petType ?? ''} • {category ?? ''}</Text>
+          <Text style={styles.meta}>{post?.petType ?? ''} • {post?.category ?? ''}</Text>
           {/* Description */}
-          <Text style={styles.description}>{description ?? ''}</Text>
-          {image ? <Image source={{ uri: image }} style={styles.image} /> : null}
+          <Text style={styles.description}>
+            {post?.description ?? ''}
+            {post?.edits && post.edits.length > 0 && (
+              <Text
+                onPress={() => {
+                  setSelectedEdits(post.edits ?? []);
+                  setEditHistoryModalVisible(true);
+                }}
+                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+              >
+                (edited)
+              </Text>
+            )}
+          </Text>
+          {post?.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.image} /> : null}
           
           <View style={{ marginTop: 30 }}>
             <View style={styles.commentInputRow}>
@@ -289,18 +328,7 @@ export default function PostDetail() {
                         <Text style={{ color: '#666', fontSize: 12 }}>
                           {formatTimeValue(c.createdAt.toISOString())}
                         </Text>
-                        {c.edits && c.edits.length > 0 && (
-                          <TouchableOpacity
-                            onPress={() => {
-                              setSelectedComment(c.id);
-                              setEditHistoryModalVisible(true);
-                            }}
-                          >
-                            <Text style={{ color: '#666', fontSize: 12, marginLeft: 4 }}>
-                              (edited)
-                            </Text>
-                          </TouchableOpacity>
-                        )}
+                        
                       </View>
                       {/* Editing View */}
                       {editing && selectedComment === c.id ? (
@@ -332,7 +360,21 @@ export default function PostDetail() {
                         </View>
                       ) : (
                         /* Normal non-editing text */
-                        <Text style={{ marginTop: 4 }}>{c.content}</Text>
+                        <Text style={{ marginTop: 4 }}>
+                          {c.content}
+                          {c.edits && c.edits.length > 0 && (
+                            <Text
+                              onPress={() => {
+                                setSelectedComment(c.id);
+                                setSelectedEdits(c.edits ?? []);
+                                setEditHistoryModalVisible(true);
+                              }}
+                              style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+                            >
+                              (edited)
+                            </Text>
+                          )}
+                        </Text>
                       )}
                     </View>
                     {/* "..." menu button ONLY for your comments */}
@@ -374,47 +416,49 @@ export default function PostDetail() {
               {/* Modal for edit history */}
               <Modal
                 visible={editHistoryModalVisible}
-                transparent={true}
+                transparent
                 animationType="slide"
                 onRequestClose={() => setEditHistoryModalVisible(false)}
               >
                 <TouchableWithoutFeedback onPress={() => setEditHistoryModalVisible(false)}>
-                  <View style={{
-                    flex: 1,
-                    backgroundColor: "rgba(0,0,0,0.5)",
-                    justifyContent: "center",
-                    padding: 20,
-                  }}>
+                  <View
+                    style={{
+                      flex: 1,
+                      backgroundColor: "rgba(0,0,0,0.5)",
+                      justifyContent: "center",
+                      padding: 20,
+                    }}
+                  >
                     <TouchableWithoutFeedback>
-                      <View style={{
-                        backgroundColor: "#fff",
-                        borderRadius: 10,
-                        padding: 20,
-                        maxHeight: "70%",
-                      }}>
+                      <View
+                        style={{
+                          backgroundColor: "#fff",
+                          borderRadius: 10,
+                          padding: 20,
+                          maxHeight: "70%",
+                        }}
+                      >
                         <ScrollView>
-                          {(() => {
-                            const comment = commentsList.find(x => x.id === selectedComment);
-                            return comment?.edits?.map((text, idx) => (
-                              <View
-                                key={idx}
-                                style={{
-                                  backgroundColor: "#f7f7f7",
-                                  padding: 12,
-                                  borderRadius: 8,
-                                  marginBottom: 12,
-                                }}
-                              >
-                                <Text style={{ color: "#444" }}>{text}</Text>
-                              </View>
-                            ));
-                          })()}
+                          {selectedEdits?.map((text, idx) => (
+                            <View
+                              key={idx}
+                              style={{
+                                backgroundColor: "#f7f7f7",
+                                padding: 12,
+                                borderRadius: 8,
+                                marginBottom: 12,
+                              }}
+                            >
+                              <Text style={{ color: "#444" }}>{text}</Text>
+                            </View>
+                          ))}
                         </ScrollView>
                       </View>
                     </TouchableWithoutFeedback>
                   </View>
                 </TouchableWithoutFeedback>
               </Modal>
+
 
             </View>
           </View>
