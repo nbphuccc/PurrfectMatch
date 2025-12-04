@@ -16,7 +16,7 @@ import {
   Platform,
 } from "react-native";
 import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase } from "../../api/playdates";
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Circle } from 'react-native-maps';
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
@@ -52,6 +52,42 @@ type CardPost = {
   locationName?: string | null;
 };
 
+export interface PlacePrediction {
+  description: string;
+  place_id: string;
+  types?: string[];
+  structured_formatting?: {
+    main_text: string;
+    secondary_text: string;
+  };
+}
+
+export interface PlaceDetails {
+  name: string;
+  formatted_address: string;
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
+}
+
+export interface SelectedLocation {
+  address: string;
+  latitude: number;
+  longitude: number;
+  types: string[];             // types returned by Google
+  placeId?: string;            // optional if you want to link back to Places API
+  addressComponents: any[];   // optional if you want more detail
+  viewport?: {
+    northeast: { lat: number; lng: number };
+    southwest: { lat: number; lng: number };
+  };
+}
+
+export type MapLocation = Omit<SelectedLocation, "addressComponents">;
+
 async function uploadImageToStorage(uri: string): Promise<string> {
   const storage = getStorage(app);
   const response = await fetch(uri);
@@ -67,19 +103,14 @@ async function uploadImageToStorage(uri: string): Promise<string> {
   return downloadUrl;
 }
 
-type SelectedLocation = {
-  latitude: number;
-  longitude: number;
-};
-
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export default function PlaydateScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
 
-  const [showForm, setShowForm] = React.useState(false);
-  const [formData, setFormData] = React.useState({
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
     time: "",
     date: "",
     petBreed: "",
@@ -91,30 +122,177 @@ export default function PlaydateScreen() {
     zip: "",
   });
 
-  const [errors, setErrors] = React.useState({
+  const [errors, setErrors] = useState({
     time: false,
     date: false,
     petBreed: false,
-    city: false,
+    location: false,
   });
 
-  const [selectedState, setSelectedState] = React.useState("WA");
-  const [modalVisible, setModalVisible] = React.useState(false);
-  const [formModalVisible, setFormModalVisible] = React.useState(false);
-  const [posts, setPosts] = React.useState<CardPost[]>([]);
-  const [filteredPosts, setFilteredPosts] = React.useState<CardPost[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [loadError, setLoadError] = React.useState<string | null>(null);
-  const [localImageUri, setLocalImageUri] = React.useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = React.useState(false);
-  const [locationQuery, setLocationQuery] = React.useState('');
-  const [selectedLocation, setSelectedLocation] = React.useState<SelectedLocation | null>(null);
+  const [selectedState, setSelectedState] = useState("WA");
+  const [modalVisible, setModalVisible] = useState(false);
+  //const [formModalVisible, setFormModalVisible] = useState(false);
+  const [posts, setPosts] = useState<CardPost[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<CardPost[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const [locationQuery, setLocationQuery] = useState<string>('');
+  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
+
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const dynamicCardWidth = width > 900 ? 800 : width > 600 ? 550 : "100%";
+
+  // Called when user types in the input
+  const handleLocationInputChange = (text: string) => {
+    setLocationQuery(text);
+    setSelectedLocation(null); // reset previous validated location
+
+    // Only fetch predictions if text is not empty
+    if (text.trim().length > 0) {
+      fetchPredictions(text);
+    } else {
+      setPredictions([]); // clear suggestions if input is empty
+    }
+  };
+
+  // Fetch predictions from Google Places API
+  const fetchPredictions = async (text: string) => {
+    if (!text || text.length < 2) {
+      setPredictions([]);
+      return;
+    }
+
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+      text
+    )}&key=${GOOGLE_MAPS_API_KEY}&components=country:us`;
+
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      const preds: PlacePrediction[] = (json.predictions || []).slice(0, 3);
+      setPredictions(preds);
+    } catch (err) {
+      console.error("Autocomplete fetch failed", err);
+      setPredictions([]);
+    }
+  };
+
+  // Called when a prediction is selected from the list
+  const onSelectPrediction = (prediction: PlacePrediction) => {
+    setLocationQuery(prediction.description); // update input text
+    setPredictions([]);                        // hide suggestions
+  };
+
+  const getPlaceNameFromPlaceId = async (placeId: string): Promise<string | null> => {
+    if (!placeId) return null;
+
+    const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error("Missing Google Places API key");
+      return null;
+    }
+
+    const url =
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name&key=${apiKey}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status !== "OK") {
+        console.warn("Places API error:", data.status, data.error_message);
+        return null;
+      }
+
+      return data.result?.name ?? null;
+    } catch (err) {
+      console.error("Failed to fetch place name:", err);
+      return null;
+    }
+  };
+
+  const extractLocationFields = async (loc: SelectedLocation) => {
+    if (!loc.addressComponents) 
+      return { city: "", state: "", zip: "", neighborhood: "", locationName: loc.address };
+
+    const getComponent = (type: string, useShortName = false) =>
+      loc.addressComponents.find(c => c.types.includes(type))?.[useShortName ? "short_name" : "long_name"];
+
+    const city = getComponent("locality") || "";
+    const state = getComponent("administrative_area_level_1", true) || ""; // use short name
+    const zip = getComponent("postal_code") || "";
+    const neighborhood = getComponent("neighborhood") || "";
+
+    // Try to get place name from placeId
+    const name = await getPlaceNameFromPlaceId(loc.placeId || "");
+
+    // Determine display name: prefer placeId → named place → neighborhood → ZIP → city → fallback
+    const locationName =
+      name ||
+      loc.addressComponents.find(c =>
+        ["establishment", "park", "point_of_interest", "premise"].some(t => c.types.includes(t))
+      )?.long_name ||
+      neighborhood ||
+      zip ||
+      city ||
+      loc.address;
+
+    return { city, state, zip, neighborhood, locationName };
+  };
+
+  const isSpecificPlace = (types: string[]) => {
+    return types.some(t =>
+      [
+        "street_address",
+        "premise",
+        "subpremise",
+        "route",
+        "park",
+        "establishment",
+        "point_of_interest",
+      ].includes(t)
+    );
+  };
+
+  const getRadiusFromViewport = (
+    viewport: NonNullable<SelectedLocation["viewport"]>,
+    centerLat: number
+  ) => {
+    const latDiff = Math.abs(viewport.northeast.lat - viewport.southwest.lat);
+    const lngDiff = Math.abs(viewport.northeast.lng - viewport.southwest.lng);
+
+    // Convert degrees → meters
+    const latMeters = latDiff * 111_000;
+    const lngMeters =
+      lngDiff * 111_000 * Math.cos((centerLat * Math.PI) / 180);
+
+    // Use diagonal and divide by 2.8 to get radius
+    let radius = Math.sqrt(latMeters ** 2 + lngMeters ** 2) / 2.8;
+
+    // Clamp radius to prevent absurd sizes
+    radius = Math.min(Math.max(radius, 200), 25_000); // 200m–25km
+
+    return radius;
+  };
+
+  const getRegionFromViewport = (
+    viewport: NonNullable<SelectedLocation["viewport"]>
+  ) => {
+    const latitudeDelta =
+      Math.abs(viewport.northeast.lat - viewport.southwest.lat) * 1.5;
+    const longitudeDelta =
+      Math.abs(viewport.northeast.lng - viewport.southwest.lng) * 1.5;
+
+    return { latitudeDelta, longitudeDelta };
+  };
 
   const [, setTick] = useState(0);
   React.useEffect(() => {
@@ -130,7 +308,7 @@ export default function PlaydateScreen() {
 
   const handleInputChange = (key: string, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
-    if (errors[key as "time" | "date" | "petBreed" | "city"]) {
+    if (errors[key as "time" | "date" | "petBreed" | "location"]) {
       setErrors((prev) => ({ ...prev, [key]: false }));
     }
   };
@@ -141,35 +319,52 @@ export default function PlaydateScreen() {
       showAlert('Location required', 'Please type a park name or address first.');
       return;
     }
-  
+
     if (!GOOGLE_MAPS_API_KEY) {
       console.warn('Missing EXPO_PUBLIC_GOOGLE_MAPS_API_KEY');
       showAlert('Config error', 'Map lookup is not configured yet.');
       return;
     }
-  
+
     try {
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
         query
       )}&key=${GOOGLE_MAPS_API_KEY}`;
-  
+
       const res = await fetch(url);
       const data = await res.json();
-  
+
       if (data.status !== 'OK' || !data.results.length) {
-        showAlert('Not found', 'Could not find that location. Try a more specific address.');
+        showAlert('Not found', 'Could not find the location. Try a more specific address.');
         return;
       }
-  
+
       const result = data.results[0];
-      const { lat, lng } = result.geometry.location;
-  
+
+      // Check if the location is too general (state or country)
+      if (
+        result.types.includes('administrative_area_level_1') || 
+        result.types.includes('country')
+      ) {
+        showAlert('Location too general','Please enter a more specific location.');
+        return;
+      }
+
       setSelectedLocation({
-        latitude: lat,
-        longitude: lng,
+        address: result.formatted_address,
+        latitude: result.geometry.location.lat,
+        longitude: result.geometry.location.lng,
+        types: result.types || [],
+        placeId: result.place_id,                // optional, exists in Google result
+        addressComponents: result.address_components, // optional, full components
+        viewport: result.geometry.viewport,
       });
-  
-      // Optional: overwrite address with the formatted address returned by Google
+
+      console.log('Geocoded location:', result.address_components);
+      const name = await getPlaceNameFromPlaceId(result.place_id);
+      console.log('Resolved place name:', name);
+
+      // Optional: store formatted address in form
       setFormData(prev => ({
         ...prev,
         address: result.formatted_address,
@@ -244,7 +439,7 @@ export default function PlaydateScreen() {
     const trimmedDate = formData.date.trim();
 
     const trimmedBreed = formData.petBreed.trim();
-    const trimmedCity = formData.city.trim();
+    //const trimmedCity = formData.city.trim();
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     const isDateValid = dateRegex.test(trimmedDate);
@@ -253,15 +448,10 @@ export default function PlaydateScreen() {
       time: !trimmedTime,
       date: !isDateValid,
       petBreed: !trimmedBreed,
-      city: !trimmedCity,
+      location: !selectedLocation,  // changed from city
     };
 
-    if (
-      newErrors.time ||
-      newErrors.date ||
-      newErrors.petBreed ||
-      newErrors.city
-    ) {
+    if (newErrors.time || newErrors.date || newErrors.petBreed || newErrors.location) {
       setErrors(newErrors);
       showAlert(
         "Invalid or Missing Fields",
@@ -289,7 +479,6 @@ export default function PlaydateScreen() {
       return;
     }
 
-
     try {
       setLoading(true);
 
@@ -302,6 +491,15 @@ export default function PlaydateScreen() {
           setUploadingImage(false);
         }
       }
+      if (!selectedLocation) {
+        showAlert("Location required", "Please select a valid location.");
+        return;
+      }
+
+      const { city, state, zip, neighborhood, locationName } = await extractLocationFields(selectedLocation);
+      const { addressComponents, ...locationForSave } = selectedLocation;
+
+      //console.log("Saving playdate with location:", locationName);
 
       await createPlaydateFirebase({
         authorId: currentUser.uid,
@@ -310,21 +508,16 @@ export default function PlaydateScreen() {
         description:
           formData.description.trim() || `${trimmedBreed} playdate scheduled!`,
         dogBreed: trimmedBreed,
-        address: formData.address?.trim() || "TBD",
-        city: trimmedCity,
-        state: selectedState,
-        zip: formData.zip?.trim() || "98055",
-        whenAt: whenAt,
-        place: trimmedCity,
+        city,
+        state,
+        zip,
+        neighborhood,
+        whenAt,
         imageUrl: finalImageUrl,
         likes: 0,
         comments: 0,
-        locationName:
-          locationQuery.trim() ||
-          formData.address?.trim() ||
-          trimmedCity,
-        latitude: selectedLocation?.latitude ?? null,
-        longitude: selectedLocation?.longitude ?? null,
+        locationName,
+        location: locationForSave,
       });
 
       setShowForm(false);
@@ -340,6 +533,7 @@ export default function PlaydateScreen() {
         zip: "",
       });
       setLocationQuery('');
+      setPredictions([]);
       setSelectedLocation(null);
       setLocalImageUri(null);
 
@@ -396,11 +590,10 @@ export default function PlaydateScreen() {
             likes: post.likes ?? 0,
             comments: post.comments ?? 0,
             liked: liked,
-            address: post.address,
             zip: post.zip,
-            latitude: post.latitude ?? null,
-            longitude: post.longitude ?? null,
+            neighborhood: post.neighborhood ?? null,
             locationName: post.locationName ?? null,
+            location: post.location,
           };
         })
       );
@@ -437,6 +630,32 @@ export default function PlaydateScreen() {
     });
   };
 
+  const isPin = selectedLocation
+    ? isSpecificPlace(selectedLocation.types)
+    : true;
+
+  const dynamicRegion = selectedLocation
+    ? isPin
+      ? {
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+          latitudeDelta: 0.02,   // ✅ tight zoom for exact place
+          longitudeDelta: 0.02,
+        }
+      : selectedLocation.viewport
+      ? {
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+          ...getRegionFromViewport(selectedLocation.viewport), // ✅ zoom out for area
+        }
+      : {
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }
+    : undefined;
+    
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -698,7 +917,6 @@ export default function PlaydateScreen() {
               />
             )}
 
-
             <Text style={styles.label}>Pet Breed (required):</Text>
             <TextInput
               style={[styles.input, errors.petBreed && styles.errorInput]}
@@ -706,51 +924,6 @@ export default function PlaydateScreen() {
               value={formData.petBreed}
               onChangeText={(text) => handleInputChange("petBreed", text)}
             />
-
-            <Text style={styles.label}>City (required):</Text>
-            <TextInput
-              style={[styles.input, errors.city && styles.errorInput]}
-              placeholder="Enter city"
-              value={formData.city}
-              onChangeText={(text) => handleInputChange("city", text)}
-            />
-
-            <Text style={styles.label}>State (required):</Text>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setFormModalVisible(true)}
-            >
-              <Text style={styles.dropdownText}>{selectedState} ▼</Text>
-            </TouchableOpacity>
-
-            <Modal visible={formModalVisible} transparent animationType="slide">
-              <View style={styles.modalBackground}>
-                <View style={styles.modalContent}>
-                  <ScrollView>
-                    {US_STATES.map((state) => (
-                      <TouchableOpacity
-                        key={state}
-                        onPress={() => {
-                          setSelectedState(state);
-                          setFormModalVisible(false);
-                        }}
-                        style={styles.modalItem}
-                      >
-                        <Text style={styles.modalItemText}>{state}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                  <TouchableOpacity
-                    onPress={() => setFormModalVisible(false)}
-                    style={styles.modalCancel}
-                  >
-                    <Text style={{ color: "red", fontWeight: "bold" }}>
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Modal>
 
             <Text style={styles.label}>Contact Info (optional):</Text>
             <TextInput
@@ -782,52 +955,72 @@ export default function PlaydateScreen() {
               onChangeText={(text) => handleInputChange("description", text)}
               multiline
             />
-                      <Text style={styles.label}>Playdate Location (optional):</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Type park name or address"
-            value={locationQuery}
-            onChangeText={setLocationQuery}
-          />
+                      <Text style={styles.label}>Playdate Location (required):</Text>
+                      <TextInput
+              style={styles.input}
+              placeholder="Type park name or address"
+              value={locationQuery}
+              onChangeText={handleLocationInputChange}
+            />
 
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: '#E5F0FF', marginTop: 8 }]}
-            onPress={geocodeLocation}
-          >
-            <Text style={styles.buttonText}>Find on Map</Text>
-          </TouchableOpacity>
+            {predictions.length > 0 && (
+              <View style={{ maxHeight: 200, borderWidth: 1, borderColor: "#eee", borderRadius: 6 }}>
+                {predictions.map((item) => (
+                  <TouchableOpacity
+                    key={item.place_id}
+                    style={{ padding: 12, borderBottomWidth: 1, borderColor: "#eee" }}
+                    onPress={() => onSelectPrediction(item)}
+                  >
+                    <Text>{item.description}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
-          {selectedLocation && (
-            <View
-              style={{
-                marginTop: 10,
-                borderRadius: 8,
-                overflow: 'hidden',
-                height: 200,
-              }}
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: '#E5F0FF', marginTop: 8 }]}
+              onPress={geocodeLocation}
             >
-              <MapView
-                style={{ flex: 1 }}
-                initialRegion={{
-                  latitude: selectedLocation.latitude,
-                  longitude: selectedLocation.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-                region={{
-                  latitude: selectedLocation.latitude,
-                  longitude: selectedLocation.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-              >
-                <Marker coordinate={selectedLocation} />
-              </MapView>
-            </View>
-          )}
+              <Text style={styles.buttonText}>Select Location</Text>
+            </TouchableOpacity>
 
+            {selectedLocation && (
+              <View
+                style={{
+                  marginTop: 10,
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  height: 200,
+                }}
+              >
+                <MapView
+                  style={{ flex: 1 }}
+                  initialRegion={dynamicRegion}
+                  region={dynamicRegion}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                >
+                  {isSpecificPlace(selectedLocation.types) ? (
+                    <Marker
+                      coordinate={{
+                        latitude: selectedLocation.latitude,
+                        longitude: selectedLocation.longitude,
+                      }}
+                    />
+                  ) : selectedLocation.viewport ? (
+                    <Circle
+                      center={{
+                        latitude: selectedLocation.latitude,
+                        longitude: selectedLocation.longitude,
+                      }}
+                      radius={getRadiusFromViewport(selectedLocation.viewport, selectedLocation.latitude)}
+                      strokeWidth={1}
+                      fillColor="rgba(0,122,255,0.15)"
+                    />
+                  ) : null}
+                </MapView>
+              </View>
+            )}
             <TouchableOpacity
               style={[styles.button, { backgroundColor: "#F7D9C4" }]}
               onPress={handleSubmit}

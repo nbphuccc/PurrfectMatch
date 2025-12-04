@@ -15,6 +15,7 @@ import {
   getDoc,
   arrayUnion,
 } from "firebase/firestore";
+import { MapLocation } from "../app/(tabs)/PlayDate"
 
 // ==================== FIREBASE PLAYDATES ====================
 
@@ -26,19 +27,17 @@ export interface PlaydatePostFirebase {
   description: string;
   edits?: string[];
   dogBreed: string;
-  address: string;
   city: string;
   state: string;
   zip: string;
+  neighborhood?: string;
   whenAt: string;
-  place: string;
   imageUrl?: string;
   createdAt: Date;
   likes: number;
   comments: number;
-  locationName?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
+  locationName: string;
+  location: MapLocation;
 }
 
 const COLLECTION = "playdate_posts";
@@ -80,12 +79,11 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
       description: data.description,
       edits: data.edits ?? [],
       dogBreed: data.dogBreed,
-      address: data.address,
       city: data.city,
       state: data.state,
       zip: data.zip,
+      neighborhood: data.neighborhood ?? null,
       whenAt: data.whenAt,
-      place: data.place,
       imageUrl: data.imageUrl ?? null,
       createdAt: data.createdAt?.toDate
         ? data.createdAt.toDate()
@@ -93,8 +91,7 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
       likes: data.likes ?? 0,
       comments: data.comments ?? 0,
       locationName: data.locationName ?? null,
-      latitude: data.latitude ?? null,
-      longitude: data.longitude ?? null,
+      location: data.location,
     };
 
     return post;
