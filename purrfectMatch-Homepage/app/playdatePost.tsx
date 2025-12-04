@@ -73,6 +73,7 @@ export default function PlaydatePost() {
   const [loadingMap, setLoadingMap] = useState(false);
   //const [mapError, setMapError] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
+  const [authorEmail, setAuthorEmail] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
   const [selectedComment, setSelectedComment] = useState<string | null>(null);
@@ -112,6 +113,9 @@ export default function PlaydatePost() {
       try {
         const authorProfile = await getUserProfileFirebase(post?.authorId || "");
         setPostAvatarUrl(authorProfile?.avatar || null);
+        if (authorProfile?.publicEmail){
+          setAuthorEmail(authorProfile.email);
+        }
         const currentUser = getCurrentUser();
         if (!currentUser) {
           return;
@@ -390,8 +394,26 @@ export default function PlaydatePost() {
           <Text style={styles.subtitle}>{post?.locationName}</Text>
           <Text style={styles.subtitle}>{post?.whenAt}</Text>
 
+          {/* --- DESCRIPTION --- */}
+          <Text style={styles.description}>
+            {post?.description ?? ''}
+
+            {post?.edits && post.edits.length > 0 && (
+              <Text
+                onPress={() => {
+                  setSelectedEdits(post.edits ?? []);
+                  setEditHistoryModalVisible(true);
+                }}
+                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+              >
+                (edited)
+              </Text>
+            )}
+          </Text>
+
           {post?.imageUrl && <Image source={{ uri: post.imageUrl }} style={styles.image} />}
 
+          {/* --- LOCATION / MAP --- */}
           <View style={{ marginTop: 12 }}>
             {loadingMap && <Text style={{ color: "#666" }}>Loading map...</Text>}
 
@@ -439,20 +461,13 @@ export default function PlaydatePost() {
             )}
           </View>
 
-          <Text style={styles.description}>
-            {post?.description ?? ''}
-            {post?.edits && post.edits.length > 0 && (
-              <Text
-                onPress={() => {
-                  setSelectedEdits(post.edits ?? []);
-                  setEditHistoryModalVisible(true);
-                }}
-                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
-              >
-                (edited)
-              </Text>
-            )}
+          {/* --- CONTACT INFO --- */}
+          <Text style={[styles.description, { marginTop: 12 }]}>
+            <Text style={{ color: "#555" }}>
+              Contact info: {authorEmail ? authorEmail : "Unavailable"}
+            </Text>
           </Text>
+
         </View>
 
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
@@ -668,9 +683,10 @@ const styles = StyleSheet.create({
   },
 
   description: {
+    marginTop: 10,
     fontSize: 15,
     color: "#333",
-    marginBottom: 14,
+    marginBottom: 10,
     lineHeight: 20,
   },
 
