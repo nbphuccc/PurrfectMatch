@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,12 @@ import {
   deletePlaydateCommentFirebase,
   editPlaydateCommentFirebase,
   getPlaydatePostFirebase,
+  getLikeStatusFirebase,
+  toggleLikeFirebase,
+  getJoinStatusFirebase,
+  toggleJoinFirebase,
+  getParticipantsFirebase,
+  MiniProfile
 } from "../api/playdates";
 import { MapLocation } from "./(tabs)/PlayDate";
 import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
@@ -69,12 +75,12 @@ export default function PlaydatePost() {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
-  //const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loadingMap, setLoadingMap] = useState(false);
-  //const [mapError, setMapError] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [authorEmail, setAuthorEmail] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [liked, setLiked] = useState<boolean>(false);
+  const [joined, setJoined] = useState<boolean>(false);
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
   const [selectedComment, setSelectedComment] = useState<string | null>(null);
   const [editing, setEditing] = useState<boolean>(false);
@@ -82,31 +88,28 @@ export default function PlaydatePost() {
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<PlaydatePostFirebase | null>(null);
+  const [participantsList, setParticipantsList] = useState<MiniProfile[] | null>(null);
+  const [participantsModalVisible, setParticipantsModalVisible] = useState<boolean>(false);
 
   const router = useRouter();
 
-  useEffect(() => {
+  const loadPost = useCallback(async () => {
     if (!postId) return;
 
-    let isMounted = true;
-
-    const loadPost = async () => {
-      try {
-        setLoadingMap(true);
-        const data = await getPlaydatePostFirebase(postId);
-        if (isMounted) setPost(data);
-      } catch (err) {
-        console.error("Failed to load post:", err);
-      } finally {
-        if (isMounted) setLoadingMap(false);
-      }
-    };
-
-    loadPost();
-    return () => {
-      isMounted = false;
-    };
+    try {
+      setLoadingMap(true);
+      const data = await getPlaydatePostFirebase(postId);
+      if (data) setPost(data);
+    } catch (err) {
+      console.error("Failed to load post:", err);
+    } finally {
+      setLoadingMap(false);
+    }
   }, [postId]);
+
+  useEffect(() => {
+    loadPost();
+  }, [loadPost]);
 
   useEffect(() => {
     const fetchAvatar = async () => {
@@ -120,8 +123,15 @@ export default function PlaydatePost() {
         if (!currentUser) {
           return;
         }
+        if (!postId){
+          return;
+        }
         const profile = await getUserProfileFirebase(currentUser.uid);
         setAvatarUrl(profile?.avatar || null);
+        const liked = currentUser ? await getLikeStatusFirebase(postId, currentUser.uid) : false;
+        const joined = currentUser ? await getJoinStatusFirebase(postId, currentUser.uid) : false;
+        setLiked(liked);
+        setJoined(joined);
       } catch (err) {
         console.error("Failed to fetch avatar:", err);
         setPostAvatarUrl(null);
@@ -133,32 +143,94 @@ export default function PlaydatePost() {
     }
   });
 
-  const openInMaps = async () => {
-    const address = post?.location.address?.trim();
-    if (!address) return;
-
-    const encodedAddress = encodeURIComponent(address);
-
-    const url =
-      Platform.OS === "ios"
-        ? `http://maps.apple.com/?q=${encodedAddress}`
-        : Platform.OS === "android"
-        ? `geo:0,0?q=${encodedAddress}`
-        : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+  const toggleJoinPlaydate = async () => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert("Not Logged In", "Please log in to join playdates.");
+      return;
+    }
 
     try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        Linking.openURL(url);
-      } else {
-        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-      }
-    } catch (e) {
-      console.error("Failed to open maps:", e);
+      if (!postId) return;
+      // --- Optimistic update ---
+      setPost(prev => {
+        if (!prev) return prev; // if null, do nothing
+
+        return {
+          ...prev,
+          participants: joined
+            ? Math.max(0, prev.participants - 1)
+            : prev.participants + 1,
+        };
+      });
+
+      setJoined(!joined);
+
+      // --- Firebase update ---
+      await toggleJoinFirebase(postId, currentUser.uid);
+
+      // --- Sync from Firebase ---
+      await loadPost();
+
+    } catch (error) {
+      console.error("Error toggling join:", error);
+      Alert.alert("Error", "Failed to update join status. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
     }
   };
 
-  const loadComments = async () => {
+  const toggleLike = async () => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert("Not Logged In", "Please log in to like posts.");
+      return;
+    }
+
+    try {
+      if (!postId || !post) return;
+
+      // --- Optimistic update ---
+      setPost(prev => {
+        if (!prev) return prev; // if null, do nothing
+
+        return {
+          ...prev,
+          likes: liked ? Math.max(0, prev.likes - 1) : prev.likes + 1,
+        };
+      });
+
+      setLiked(!liked)
+
+      // --- Firebase update ---
+      await toggleLikeFirebase(postId, currentUser.uid);
+
+      // --- Sync from Firebase ---
+      await loadPost();
+
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      Alert.alert("Error", "Failed to update like status. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
+    }
+  };
+
+  const handleGetParticipants = async () => {
+    if (!post?.id) return;
+
+    try {
+      const participants = await getParticipantsFirebase(post.id);
+      setParticipantsList(participants);
+      setParticipantsModalVisible(true);
+    } catch (err) {
+      console.error("Failed to get participants:", err);
+    }
+  };
+
+  const loadComments = useCallback(async () => {
     if (!postId) return;
     setLoadingComments(true);
     const data = await getPlaydateCommentsFirebase(postId);
@@ -175,70 +247,57 @@ export default function PlaydatePost() {
     );
     setComments(displayComments);
     setLoadingComments(false);
-  };
+  },[postId]);
 
   useEffect(() => {
     loadComments();
-  }, [postId]);
+  }, [loadComments]);
 
   const handlePostComment = async () => {
     const currentUser = getCurrentUser();
-    if (!currentUser || !comment.trim()) return;
-    if (!postId) {
-      Alert.alert("Error", "Post ID is missing.");
+    if (!postId || !comment.trim()) return;
+
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Please log in to comment.');
       return;
     }
 
-    await addPlaydateCommentFirebase({
-      postId: postId,
-      authorId: currentUser.uid,
-      username: currentUser.displayName || "User",
-      content: comment.trim(),
-    });
+    try {
+      // --- Optimistic Update (increase local comment count immediately) ---
+      setPost(prev => {
+        if (!prev) return prev;
 
-    setComment("");
-    loadComments();
+        return {
+          ...prev,
+          comments: (prev.comments || 0) + 1,
+        };
+      });
+
+      // --- Send to Firebase ---
+      await addPlaydateCommentFirebase({
+        postId: postId,
+        authorId: currentUser.uid,
+        username: currentUser.displayName || "User",
+        content: comment.trim(),
+      });
+
+      // --- Clear input field ---
+      setComment("");
+
+      // --- Sync comments list ---
+      await loadComments();
+      await loadPost(); // refresh accurate count from Firebase
+
+    } catch (error) {
+      console.error("Error posting comment:", error);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
+    }
   };
 
-  /*
-  useEffect(() => {
-    const fetchCoordinates = async () => {
-      if (!post?.address || !post.city || !post.state) return;
-
-      const fullAddress = `${post.address}, ${post.city}, ${post.state} ${post.zip ?? ""}`;
-      setLoadingMap(true);
-      setMapError(null);
-
-      try {
-        const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-        const url =
-          "https://maps.googleapis.com/maps/api/geocode/json?address=" +
-          encodeURIComponent(fullAddress) +
-          `&key=${apiKey}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.status !== "OK" || !data.results?.length) {
-          setMapError("Could not find this location.");
-          return;
-        }
-
-        const loc = data.results[0].geometry.location;
-        setCoords({ latitude: loc.lat, longitude: loc.lng });
-      } catch {
-        setMapError("Failed to load map.");
-      } finally {
-        setLoadingMap(false);
-      }
-    };
-
-    fetchCoordinates();
-  }, [post?.address, post?.city, post?.state, post?.zip]);
-  */
-
   const handleMenuOption = async (option: "Edit" | "Delete") => {
-    console.log(`${option} clicked for post: ${selectedComment}`);
     if (!postId) {
       Alert.alert("Error", "Post ID is missing.");
       return;
@@ -250,19 +309,39 @@ export default function PlaydatePost() {
           Alert.alert("Error", "No comment selected.");
           return;
         }
+
+        // --- Optimistic Update (decrease comment count immediately) ---
+        setPost(prev => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            comments: Math.max(0, (prev.comments || 0) - 1),
+          };
+        });
+
+        // --- Firebase delete ---
         const response = await deletePlaydateCommentFirebase(selectedComment, postId);
 
         if (response.success) {
-          loadComments();
+          // Refresh the comments list from Firebase
+          await loadComments();
+          await loadPost(); // ensure accurate count sync
           Alert.alert("Success", "Comment deleted successfully.");
         } else {
           Alert.alert("Error", "Failed to delete comment.");
+          await loadPost(); // revert optimistic change
         }
+
       } catch (err) {
         console.error(err);
         Alert.alert("Error", "Failed to delete comment.");
+
+        // --- Revert optimistic update ---
+        await loadPost();
       }
     }
+
     if (option === "Edit") {
       setEditing(true);
     }
@@ -292,6 +371,31 @@ export default function PlaydatePost() {
     } catch (err) {
       console.error(err);
       Alert.alert("Error", "Failed to edit comment.");
+    }
+  };
+
+  const openInMaps = async () => {
+    const address = post?.location.address?.trim();
+    if (!address) return;
+
+    const encodedAddress = encodeURIComponent(address);
+
+    const url =
+      Platform.OS === "ios"
+        ? `http://maps.apple.com/?q=${encodedAddress}`
+        : Platform.OS === "android"
+        ? `geo:0,0?q=${encodedAddress}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
+      }
+    } catch (e) {
+      console.error("Failed to open maps:", e);
     }
   };
 
@@ -382,11 +486,46 @@ export default function PlaydatePost() {
                 style={styles.profilePic}
               />
             </TouchableOpacity>
-            <View>
+            <View style={{ flex: 1 }}>
               <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
                 <Text style={styles.username}>{post?.username}</Text>
               </TouchableOpacity>
               <Text style={styles.time}>{timeAgo(post?.createdAt ?? new Date())}</Text>
+            </View>
+            {/* Join Section (Badge + Button) */}
+            <View style={{ alignItems: "center" }}>
+              {/* Participants Badge */}
+              <TouchableOpacity onPress={handleGetParticipants}>
+                <View style={styles.participantsBadge}>
+                  <Text style={styles.participantsBadgeText}>
+                    {post?.participants === 0
+                      ? "No one joined yet"
+                      : post?.participants === 1
+                        ? "1 person joined"
+                        : `${post?.participants} people joined`}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+
+              <TouchableOpacity
+                style={[
+                  styles.joinButton,
+                  { backgroundColor: joined ? "#21bb61ff" : "#3498db",
+                    opacity: getCurrentUser()?.uid === post?.authorId ? 0.5 : 1
+                  }
+                ]}
+                onPress={() => {
+                  if (getCurrentUser()?.uid !== post?.authorId) {
+                    toggleJoinPlaydate();
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.joinButtonText}>
+                  {joined ? "Joined" : "Join"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -467,6 +606,23 @@ export default function PlaydatePost() {
               Contact info: {authorEmail ? authorEmail : "Unavailable"}
             </Text>
           </Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 14 }}>
+            {/* Like */}
+            <TouchableOpacity
+              onPress={() => toggleLike()}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4}}
+            >
+              <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"}/>
+              <Text>{post?.likes}</Text>
+            </TouchableOpacity>
+
+            {/* Comment Count */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4}}>
+              <Ionicons name="chatbubble-outline" size={20} color="#444"/>
+              <Text>{post?.comments ?? 0}</Text>
+            </View>
+          </View>
 
         </View>
 
@@ -644,6 +800,44 @@ export default function PlaydatePost() {
             </TouchableWithoutFeedback>
           </Modal>
 
+          {/* Modal for viewing participants */}
+          <Modal visible={participantsModalVisible} transparent animationType="slide">
+            <TouchableWithoutFeedback onPress={() => setParticipantsModalVisible(false)}>
+              <View style={styles.participantsModalOverlay}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.participantsModalContent}>
+                    <Text style={styles.participantsModalTitle}>Participants</Text>
+
+                    <ScrollView style={styles.participantsModalList}>
+                      {participantsList?.map((participant) => (
+                        <TouchableOpacity
+                          key={participant.id}
+                          style={styles.participantsModalItem}
+                          activeOpacity={0.7}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/userProfile",
+                              params: { authorId: participant.id },
+                            })
+                          }
+                        >
+                          <Image
+                            source={{ uri: participant.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                            style={{ width: 40, height: 40, borderRadius: 20 }}
+                          />
+                          <Text style={styles.participantsModalItemText}>
+                            {participant.username || "Unknown"}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
         </View>
 
         <View style={{ height: 100 }} />
@@ -663,7 +857,10 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderWidth: 1,            // adds border
+    borderColor: "#ddd",       // light gray border
   },
+
   cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
 
   profilePic: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
@@ -779,4 +976,79 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
   modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
   modalOptionText: { fontSize: 16 },
+
+  joinButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignSelf: "center",
+  },
+
+  joinButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+
+    participantsBadge: {
+    backgroundColor: "#FFE8D6",   // soft warm orange background
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginBottom: 6,
+    alignSelf: "center",
+  },
+
+  participantsBadgeText: {
+    color: "#F97316",             // vibrant orange text
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  participantsModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)", // slightly darker overlay
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+
+  participantsModalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: "100%", // responsive width
+    maxHeight: "70%", // avoid taking full screen
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5, // for Android shadow
+  },
+
+  participantsModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+
+  participantsModalList: {
+    // For scrollable list
+    maxHeight: 300,
+  },
+
+  participantsModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+
+  participantsModalItemText: {
+    fontSize: 16,
+    color: "#000000ff",
+    marginLeft: 10,
+  },
 });

@@ -16,6 +16,7 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { MapLocation } from "../app/(tabs)/PlayDate"
+import { ProfileFirebase } from "./firebaseAuth"
 
 // ==================== FIREBASE PLAYDATES ====================
 
@@ -36,6 +37,7 @@ export interface PlaydatePostFirebase {
   createdAt: Date;
   likes: number;
   comments: number;
+  participants: number,
   locationName: string;
   location: MapLocation;
 }
@@ -90,6 +92,7 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
         : new Date(data.createdAt),
       likes: data.likes ?? 0,
       comments: data.comments ?? 0,
+      participants: data.participants ?? 0,
       locationName: data.locationName ?? null,
       location: data.location,
     };
@@ -382,5 +385,96 @@ export async function getLikeStatusFirebase(postId: string, userId: string): Pro
   } catch (error) {
     console.error('Error checking like status:', error);
     return false;
+  }
+}
+
+// ==================== JOINS (FIREBASE) ====================
+
+export async function toggleJoinFirebase(postId: string, userId: string) {
+  try {
+    const postRef = doc(db, "playdate_posts", postId);
+    const joinsRef = collection(db, "playdate_joins");
+
+    // Check if user already joined this playdate
+    const joinQuery = query(
+      joinsRef,
+      where("postId", "==", postId),
+      where("userId", "==", userId)
+    );
+    const joinSnapshot = await getDocs(joinQuery);
+
+    if (joinSnapshot.empty) {
+      // Add join
+      await addDoc(joinsRef, {
+        postId,
+        userId,
+        createdAt: Timestamp.now(),
+      });
+      await updateDoc(postRef, {
+        participants: increment(1),
+      });
+      console.log("Join added to Firebase");
+      return { joined: true };
+    } else {
+      // Remove join
+      const joinDoc = joinSnapshot.docs[0];
+      await deleteDoc(joinDoc.ref);
+      await updateDoc(postRef, {
+        participants: increment(-1),
+      });
+      console.log("Join removed from Firebase");
+      return { joined: false };
+    }
+  } catch (error) {
+    console.error("Error toggling join in Firebase:", error);
+    throw error;
+  }
+}
+
+export async function getJoinStatusFirebase(postId: string, userId: string): Promise<boolean> {
+  try {
+    const joinsRef = collection(db, "playdate_joins");
+    const joinQuery = query(
+      joinsRef,
+      where("postId", "==", postId),
+      where("userId", "==", userId)
+    );
+    const joinSnapshot = await getDocs(joinQuery);
+    return !joinSnapshot.empty;
+  } catch (error) {
+    console.error("Error checking join status:", error);
+    return false;
+  }
+}
+
+export type MiniProfile = Partial<Pick<ProfileFirebase, "id" | "username" | "avatar">>;
+
+export async function getParticipantsFirebase(postId: string): Promise<MiniProfile[]> {
+  try {
+    const joinsRef = collection(db, "playdate_joins");
+    const joinQuery = query(joinsRef, where("postId", "==", postId));
+    const joinSnapshot = await getDocs(joinQuery);
+
+    // Extract userIds
+    const userIds: string[] = joinSnapshot.docs.map(doc => doc.data().userId);
+
+    // Fetch profile info for each userId
+    const participants: MiniProfile[] = await Promise.all(
+      userIds.map(async (userId) => {
+        const profileDoc = await getDoc(doc(db, "profile", userId)); // collection is "profiles"
+        const profileData = profileDoc.data() as ProfileFirebase | undefined;
+
+        return {
+          id: profileData?.id || userId,
+          username: profileData?.username || "Unknown",
+          avatar: profileData?.avatar || "",
+        };
+      })
+    );
+
+    return participants;
+  } catch (error) {
+    console.error("Error fetching participants:", error);
+    return [];
   }
 }
