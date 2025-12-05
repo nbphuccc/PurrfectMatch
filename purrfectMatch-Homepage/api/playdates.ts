@@ -36,6 +36,7 @@ export interface PlaydatePostFirebase {
   createdAt: Date;
   likes: number;
   comments: number;
+  participants: number,
   locationName: string;
   location: MapLocation;
 }
@@ -90,6 +91,7 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
         : new Date(data.createdAt),
       likes: data.likes ?? 0,
       comments: data.comments ?? 0,
+      participants: data.participants ?? 0,
       locationName: data.locationName ?? null,
       location: data.location,
     };
@@ -384,3 +386,63 @@ export async function getLikeStatusFirebase(postId: string, userId: string): Pro
     return false;
   }
 }
+
+// ==================== JOINS (FIREBASE) ====================
+
+export async function toggleJoinFirebase(postId: string, userId: string) {
+  try {
+    const postRef = doc(db, "playdate_posts", postId);
+    const joinsRef = collection(db, "playdate_joins");
+
+    // Check if user already joined this playdate
+    const joinQuery = query(
+      joinsRef,
+      where("postId", "==", postId),
+      where("userId", "==", userId)
+    );
+    const joinSnapshot = await getDocs(joinQuery);
+
+    if (joinSnapshot.empty) {
+      // Add join
+      await addDoc(joinsRef, {
+        postId,
+        userId,
+        createdAt: Timestamp.now(),
+      });
+      await updateDoc(postRef, {
+        participants: increment(1),
+      });
+      console.log("Join added to Firebase");
+      return { joined: true };
+    } else {
+      // Remove join
+      const joinDoc = joinSnapshot.docs[0];
+      await deleteDoc(joinDoc.ref);
+      await updateDoc(postRef, {
+        participants: increment(-1),
+      });
+      console.log("Join removed from Firebase");
+      return { joined: false };
+    }
+  } catch (error) {
+    console.error("Error toggling join in Firebase:", error);
+    throw error;
+  }
+}
+
+export async function getJoinStatusFirebase(postId: string, userId: string): Promise<boolean> {
+  try {
+    const joinsRef = collection(db, "playdate_joins");
+    const joinQuery = query(
+      joinsRef,
+      where("postId", "==", postId),
+      where("userId", "==", userId)
+    );
+    const joinSnapshot = await getDocs(joinQuery);
+    return !joinSnapshot.empty;
+  } catch (error) {
+    console.error("Error checking join status:", error);
+    return false;
+  }
+}
+

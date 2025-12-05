@@ -15,7 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase } from "../../api/playdates";
+import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase, toggleJoinFirebase, getJoinStatusFirebase } from "../../api/playdates";
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -44,7 +44,9 @@ type CardPost = {
   whenAt: string;
   likes: number;
   comments: number;
+  participants: number;
   liked: boolean;
+  joined: boolean;
   address?: string | null;
   zip?: string | null;
   latitude?: number | null;
@@ -131,7 +133,6 @@ export default function PlaydateScreen() {
 
   const [selectedState, setSelectedState] = useState("WA");
   const [modalVisible, setModalVisible] = useState(false);
-  //const [formModalVisible, setFormModalVisible] = useState(false);
   const [posts, setPosts] = useState<CardPost[]>([]);
   const [filteredPosts, setFilteredPosts] = useState<CardPost[]>([]);
   const [loading, setLoading] = useState(false);
@@ -398,35 +399,75 @@ export default function PlaydateScreen() {
 
   const toggleLike = async (postId: string) => {
     const currentUser = getCurrentUser();
-      if (!currentUser) {
-        Alert.alert('Not Logged In', 'Please log in to like posts.');
-        return;
-      }
-  
-      try {
-        // Optimistic update
-        const updatePosts = (prev: CardPost[]) =>
-          prev.map(p =>
-            p.id === postId
-              ? { ...p, liked: !p.liked, likes: p.liked ? Math.max(0, p.likes - 1) : p.likes + 1 }
-              : p
-          );
-  
-        setPosts(updatePosts);
-        setFilteredPosts(updatePosts);
-  
-        // Update Firebase
-        await toggleLikeFirebase(postId, currentUser.uid);
-        
-        // Reload to sync with Firebase
-        await loadPlaydates();
-      } catch (error) {
-        console.error('Error toggling like:', error);
-        Alert.alert('Error', 'Failed to update like. Please try again.');
-        // Revert optimistic update
-        await loadPlaydates();
-      }
-    };
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Please log in to like posts.');
+      return;
+    }
+
+    try {
+      // Optimistic update
+      const updatePosts = (prev: CardPost[]) =>
+        prev.map(p =>
+          p.id === postId
+            ? { ...p, liked: !p.liked, likes: p.liked ? Math.max(0, p.likes - 1) : p.likes + 1 }
+            : p
+        );
+
+      setPosts(updatePosts);
+      setFilteredPosts(updatePosts);
+
+      // Update Firebase
+      await toggleLikeFirebase(postId, currentUser.uid);
+      
+      // Reload to sync with Firebase
+      await loadPlaydates();
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like. Please try again.');
+      // Revert optimistic update
+      await loadPlaydates();
+    }
+  };
+
+  const toggleJoinPlaydate = async (postId: string) => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert("Not Logged In", "Please log in to join playdates.");
+      return;
+    }
+
+    try {
+      // --- Optimistic update ---
+      const updatePosts = (prev: CardPost[]) =>
+        prev.map(p =>
+          p.id === postId
+            ? {
+                ...p,
+                joined: !p.joined,
+                participants: p.joined
+                  ? Math.max(0, p.participants - 1)
+                  : p.participants + 1,
+              }
+            : p
+        );
+
+      setPosts(updatePosts);
+      setFilteredPosts(updatePosts);
+
+      // --- Firebase update ---
+      await toggleJoinFirebase(postId, currentUser.uid);
+
+      // --- Sync from Firebase ---
+      await loadPlaydates();
+
+    } catch (error) {
+      console.error("Error toggling join:", error);
+      Alert.alert("Error", "Failed to update join status. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPlaydates();
+    }
+  };
 
   const handleSubmit = async () => {
     const currentUser = getCurrentUser();
@@ -516,6 +557,7 @@ export default function PlaydateScreen() {
         imageUrl: finalImageUrl,
         likes: 0,
         comments: 0,
+        participants: 0,
         locationName,
         location: locationForSave,
       });
@@ -574,6 +616,7 @@ export default function PlaydateScreen() {
         firebasePosts.map(async (post) => {
           // Check if current user liked this post
           const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.uid) : false;
+          const joined = currentUser ? await getJoinStatusFirebase(post.id, currentUser.uid) : false;
           const profile = await getUserProfileFirebase(post.authorId);
           return {
             id: post.id,
@@ -589,7 +632,9 @@ export default function PlaydateScreen() {
             whenAt: post.whenAt,
             likes: post.likes ?? 0,
             comments: post.comments ?? 0,
+            participants: post.participants ?? 0,
             liked: liked,
+            joined: joined,
             zip: post.zip,
             neighborhood: post.neighborhood ?? null,
             locationName: post.locationName ?? null,
@@ -754,14 +799,56 @@ export default function PlaydateScreen() {
                 >
                   <View style={styles.cardHeader}>
                     <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
-                      <Image source={{ uri: post.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }} style={styles.profilePic} />
+                      <Image
+                        source={{
+                          uri:
+                            post.avatar ||
+                            "https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=",
+                        }}
+                        style={styles.profilePic}
+                      />
                     </TouchableOpacity>
 
-                    <View>
+                    <View style={{ flex: 1 }}>
                       <TouchableOpacity activeOpacity={0.8} onPress={goToProfile(post.authorId)}>
                         <Text style={styles.username}>{post.user}</Text>
                       </TouchableOpacity>
                       <Text style={styles.time}>{timeAgo(post.time)}</Text>
+                    </View>
+
+                    {/* Join Section (Badge + Button) */}
+                    <View style={{ alignItems: "center" }}>
+                      {/* Participants Badge */}
+                      <View style={styles.participantsBadge}>
+                        <Text style={styles.participantsBadgeText}>
+                          {post.participants === 0
+                            ? "No one joined yet"
+                            : post.participants === 1
+                              ? "1 person joined"
+                              : `${post.participants} people joined`}
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.joinButton,
+                          { backgroundColor: post.joined ? "#21bb61ff" : "#3498db",
+                            opacity: getCurrentUser()?.uid === post.authorId ? 0.5 : 1
+                          }
+                        ]}
+                        onPress={(e) => {
+                          e.stopPropagation(); // always stop propagation
+                          if (getCurrentUser()?.uid !== post.authorId) {
+                            toggleJoinPlaydate(post.id);
+                          }
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.joinButtonText}>
+                          {post.joined ? "Joined" : "Join"}
+                        </Text>
+                      </TouchableOpacity>
+
                     </View>
                   </View>
 
@@ -1210,4 +1297,32 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   buttonText: { fontWeight: "bold", color: "#000" },
+  joinButton: {
+  paddingHorizontal: 10,
+  paddingVertical: 5,
+  borderRadius: 6,
+  alignSelf: "center",
+},
+
+joinButtonText: {
+  color: "white",
+  fontWeight: "600",
+  fontSize: 13,
+},
+
+  participantsBadge: {
+  backgroundColor: "#FFE8D6",   // soft warm orange background
+  paddingHorizontal: 10,
+  paddingVertical: 3,
+  borderRadius: 12,
+  marginBottom: 6,
+  alignSelf: "center",
+},
+
+participantsBadgeText: {
+  color: "#F97316",             // vibrant orange text
+  fontSize: 12,
+  fontWeight: "600",
+},
+
 });
