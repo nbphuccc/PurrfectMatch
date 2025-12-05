@@ -16,6 +16,7 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { MapLocation } from "../app/(tabs)/PlayDate"
+import { ProfileFirebase } from "./firebaseAuth"
 
 // ==================== FIREBASE PLAYDATES ====================
 
@@ -446,3 +447,34 @@ export async function getJoinStatusFirebase(postId: string, userId: string): Pro
   }
 }
 
+export type MiniProfile = Partial<Pick<ProfileFirebase, "id" | "username" | "avatar">>;
+
+export async function getParticipantsFirebase(postId: string): Promise<MiniProfile[]> {
+  try {
+    const joinsRef = collection(db, "playdate_joins");
+    const joinQuery = query(joinsRef, where("postId", "==", postId));
+    const joinSnapshot = await getDocs(joinQuery);
+
+    // Extract userIds
+    const userIds: string[] = joinSnapshot.docs.map(doc => doc.data().userId);
+
+    // Fetch profile info for each userId
+    const participants: MiniProfile[] = await Promise.all(
+      userIds.map(async (userId) => {
+        const profileDoc = await getDoc(doc(db, "profile", userId)); // collection is "profiles"
+        const profileData = profileDoc.data() as ProfileFirebase | undefined;
+
+        return {
+          id: profileData?.id || userId,
+          username: profileData?.username || "Unknown",
+          avatar: profileData?.avatar || "",
+        };
+      })
+    );
+
+    return participants;
+  } catch (error) {
+    console.error("Error fetching participants:", error);
+    return [];
+  }
+}

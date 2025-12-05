@@ -26,6 +26,8 @@ import {
   getLikeStatusFirebase,
   getJoinStatusFirebase,
   toggleJoinFirebase,
+  getParticipantsFirebase,
+  MiniProfile
 } from "../api/playdates";
 import { MapLocation } from "./(tabs)/PlayDate";
 import { getCurrentUser, getUserProfileFirebase } from "../api/firebaseAuth";
@@ -72,9 +74,7 @@ export default function PlaydatePost() {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
-  //const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [loadingMap, setLoadingMap] = useState(false);
-  //const [mapError, setMapError] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
   const [authorEmail, setAuthorEmail] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -87,6 +87,8 @@ export default function PlaydatePost() {
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<PlaydatePostFirebase | null>(null);
+  const [participantsList, setParticipantsList] = useState<MiniProfile[] | null>(null);
+  const [participantsModalVisible, setParticipantsModalVisible] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -102,7 +104,7 @@ export default function PlaydatePost() {
     } finally {
       setLoadingMap(false);
     }
-  }, [postId]); // memoized, safe
+  }, [postId]);
 
   useEffect(() => {
     loadPost();
@@ -141,42 +143,54 @@ export default function PlaydatePost() {
   });
 
   const toggleJoinPlaydate = async () => {
-      const currentUser = getCurrentUser();
-      if (!currentUser) {
-        Alert.alert("Not Logged In", "Please log in to join playdates.");
-        return;
-      }
-  
-      try {
-        if (!postId) return;
-        // --- Optimistic update ---
-        setPost(prev => {
-          if (!prev) return prev; // if null, do nothing
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert("Not Logged In", "Please log in to join playdates.");
+      return;
+    }
 
-          return {
-            ...prev,
-            participants: joined
-              ? Math.max(0, prev.participants - 1)
-              : prev.participants + 1,
-          };
-        });
+    try {
+      if (!postId) return;
+      // --- Optimistic update ---
+      setPost(prev => {
+        if (!prev) return prev; // if null, do nothing
 
-        setJoined(!joined);
-  
-        // --- Firebase update ---
-        await toggleJoinFirebase(postId, currentUser.uid);
-  
-        // --- Sync from Firebase ---
-        await loadPost();
-  
-      } catch (error) {
-        console.error("Error toggling join:", error);
-        Alert.alert("Error", "Failed to update join status. Please try again.");
-  
-        // --- Revert optimistic update ---
-        await loadPost();
-      }
-    };
+        return {
+          ...prev,
+          participants: joined
+            ? Math.max(0, prev.participants - 1)
+            : prev.participants + 1,
+        };
+      });
+
+      setJoined(!joined);
+
+      // --- Firebase update ---
+      await toggleJoinFirebase(postId, currentUser.uid);
+
+      // --- Sync from Firebase ---
+      await loadPost();
+
+    } catch (error) {
+      console.error("Error toggling join:", error);
+      Alert.alert("Error", "Failed to update join status. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
+    }
+  };
+
+  const handleGetParticipants = async () => {
+    if (!post?.id) return;
+
+    try {
+      const participants = await getParticipantsFirebase(post.id);
+      setParticipantsList(participants);
+      setParticipantsModalVisible(true);
+    } catch (err) {
+      console.error("Failed to get participants:", err);
+    }
+  };
 
   const loadComments = useCallback(async () => {
     if (!postId) return;
@@ -399,15 +413,18 @@ export default function PlaydatePost() {
             {/* Join Section (Badge + Button) */}
             <View style={{ alignItems: "center" }}>
               {/* Participants Badge */}
-              <View style={styles.participantsBadge}>
-                <Text style={styles.participantsBadgeText}>
-                  {post?.participants === 0
-                    ? "No one joined yet"
-                    : post?.participants === 1
-                      ? "1 person joined"
-                      : `${post?.participants} people joined`}
-                </Text>
-              </View>
+              <TouchableOpacity onPress={handleGetParticipants}>
+                <View style={styles.participantsBadge}>
+                  <Text style={styles.participantsBadgeText}>
+                    {post?.participants === 0
+                      ? "No one joined yet"
+                      : post?.participants === 1
+                        ? "1 person joined"
+                        : `${post?.participants} people joined`}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
 
               <TouchableOpacity
                 style={[
@@ -684,6 +701,44 @@ export default function PlaydatePost() {
             </TouchableWithoutFeedback>
           </Modal>
 
+          {/* Modal for viewing participants */}
+          <Modal visible={participantsModalVisible} transparent animationType="slide">
+            <TouchableWithoutFeedback onPress={() => setParticipantsModalVisible(false)}>
+              <View style={styles.participantsModalOverlay}>
+                <TouchableWithoutFeedback>
+                  <View style={styles.participantsModalContent}>
+                    <Text style={styles.participantsModalTitle}>Participants</Text>
+
+                    <ScrollView style={styles.participantsModalList}>
+                      {participantsList?.map((participant) => (
+                        <TouchableOpacity
+                          key={participant.id}
+                          style={styles.participantsModalItem}
+                          activeOpacity={0.7}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/userProfile",
+                              params: { authorId: participant.id },
+                            })
+                          }
+                        >
+                          <Image
+                            source={{ uri: participant.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
+                            style={{ width: 40, height: 40, borderRadius: 20 }}
+                          />
+                          <Text style={styles.participantsModalItemText}>
+                            {participant.username || "Unknown"}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                  </View>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+
         </View>
 
         <View style={{ height: 100 }} />
@@ -821,30 +876,77 @@ const styles = StyleSheet.create({
   modalOptionText: { fontSize: 16 },
 
   joinButton: {
-  paddingHorizontal: 10,
-  paddingVertical: 5,
-  borderRadius: 6,
-  alignSelf: "center",
-},
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignSelf: "center",
+  },
 
-joinButtonText: {
-  color: "white",
-  fontWeight: "600",
-  fontSize: 13,
-},
+  joinButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 
-  participantsBadge: {
-  backgroundColor: "#FFE8D6",   // soft warm orange background
-  paddingHorizontal: 10,
-  paddingVertical: 3,
-  borderRadius: 12,
-  marginBottom: 6,
-  alignSelf: "center",
-},
+    participantsBadge: {
+    backgroundColor: "#FFE8D6",   // soft warm orange background
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginBottom: 6,
+    alignSelf: "center",
+  },
 
-participantsBadgeText: {
-  color: "#F97316",             // vibrant orange text
-  fontSize: 12,
-  fontWeight: "600",
-},
+  participantsBadgeText: {
+    color: "#F97316",             // vibrant orange text
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  participantsModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)", // slightly darker overlay
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+
+  participantsModalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    width: "100%", // responsive width
+    maxHeight: "70%", // avoid taking full screen
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5, // for Android shadow
+  },
+
+  participantsModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+
+  participantsModalList: {
+    // For scrollable list
+    maxHeight: 300,
+  },
+
+  participantsModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+
+  participantsModalItemText: {
+    fontSize: 16,
+    color: "#000000ff",
+    marginLeft: 10,
+  },
 });
