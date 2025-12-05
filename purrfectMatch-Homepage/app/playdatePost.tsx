@@ -24,6 +24,7 @@ import {
   editPlaydateCommentFirebase,
   getPlaydatePostFirebase,
   getLikeStatusFirebase,
+  toggleLikeFirebase,
   getJoinStatusFirebase,
   toggleJoinFirebase,
   getParticipantsFirebase,
@@ -180,6 +181,43 @@ export default function PlaydatePost() {
     }
   };
 
+  const toggleLike = async () => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert("Not Logged In", "Please log in to like posts.");
+      return;
+    }
+
+    try {
+      if (!postId || !post) return;
+
+      // --- Optimistic update ---
+      setPost(prev => {
+        if (!prev) return prev; // if null, do nothing
+
+        return {
+          ...prev,
+          likes: liked ? Math.max(0, prev.likes - 1) : prev.likes + 1,
+        };
+      });
+
+      setLiked(!liked)
+
+      // --- Firebase update ---
+      await toggleLikeFirebase(postId, currentUser.uid);
+
+      // --- Sync from Firebase ---
+      await loadPost();
+
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      Alert.alert("Error", "Failed to update like status. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
+    }
+  };
+
   const handleGetParticipants = async () => {
     if (!post?.id) return;
 
@@ -217,25 +255,49 @@ export default function PlaydatePost() {
 
   const handlePostComment = async () => {
     const currentUser = getCurrentUser();
-    if (!currentUser || !comment.trim()) return;
-    if (!postId) {
-      Alert.alert("Error", "Post ID is missing.");
+    if (!postId || !comment.trim()) return;
+
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Please log in to comment.');
       return;
     }
 
-    await addPlaydateCommentFirebase({
-      postId: postId,
-      authorId: currentUser.uid,
-      username: currentUser.displayName || "User",
-      content: comment.trim(),
-    });
+    try {
+      // --- Optimistic Update (increase local comment count immediately) ---
+      setPost(prev => {
+        if (!prev) return prev;
 
-    setComment("");
-    loadComments();
+        return {
+          ...prev,
+          comments: (prev.comments || 0) + 1,
+        };
+      });
+
+      // --- Send to Firebase ---
+      await addPlaydateCommentFirebase({
+        postId: postId,
+        authorId: currentUser.uid,
+        username: currentUser.displayName || "User",
+        content: comment.trim(),
+      });
+
+      // --- Clear input field ---
+      setComment("");
+
+      // --- Sync comments list ---
+      await loadComments();
+      await loadPost(); // refresh accurate count from Firebase
+
+    } catch (error) {
+      console.error("Error posting comment:", error);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
+    }
   };
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
-    console.log(`${option} clicked for post: ${selectedComment}`);
     if (!postId) {
       Alert.alert("Error", "Post ID is missing.");
       return;
@@ -247,19 +309,39 @@ export default function PlaydatePost() {
           Alert.alert("Error", "No comment selected.");
           return;
         }
+
+        // --- Optimistic Update (decrease comment count immediately) ---
+        setPost(prev => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            comments: Math.max(0, (prev.comments || 0) - 1),
+          };
+        });
+
+        // --- Firebase delete ---
         const response = await deletePlaydateCommentFirebase(selectedComment, postId);
 
         if (response.success) {
-          loadComments();
+          // Refresh the comments list from Firebase
+          await loadComments();
+          await loadPost(); // ensure accurate count sync
           Alert.alert("Success", "Comment deleted successfully.");
         } else {
           Alert.alert("Error", "Failed to delete comment.");
+          await loadPost(); // revert optimistic change
         }
+
       } catch (err) {
         console.error(err);
         Alert.alert("Error", "Failed to delete comment.");
+
+        // --- Revert optimistic update ---
+        await loadPost();
       }
     }
+
     if (option === "Edit") {
       setEditing(true);
     }
@@ -525,6 +607,23 @@ export default function PlaydatePost() {
             </Text>
           </Text>
 
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 14 }}>
+            {/* Like */}
+            <TouchableOpacity
+              onPress={() => toggleLike()}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4}}
+            >
+              <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"}/>
+              <Text>{post?.likes}</Text>
+            </TouchableOpacity>
+
+            {/* Comment Count */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4}}>
+              <Ionicons name="chatbubble-outline" size={20} color="#444"/>
+              <Text>{post?.comments ?? 0}</Text>
+            </View>
+          </View>
+
         </View>
 
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
@@ -758,7 +857,10 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderWidth: 1,            // adds border
+    borderColor: "#ddd",       // light gray border
   },
+
   cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
 
   profilePic: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },

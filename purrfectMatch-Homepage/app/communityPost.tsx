@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, TouchableWithoutFeedback } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CommunityPostFirebase, getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase, getCommunityPostFirebase } from '../api/community';
+import { CommunityPostFirebase, getLikeStatusFirebase, toggleLikeFirebase, getCommentsFirebase, addCommentFirebase, CommentFirebase, deleteCommunityCommentFirebase, editCommunityCommentFirebase, getCommunityPostFirebase } from '../api/community';
 import { getCurrentUser, getUserProfileFirebase } from '../api/firebaseAuth';
 
 const formatRelativeTime = (iso: string) => {
@@ -53,34 +54,92 @@ export default function PostDetail() {
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<CommunityPostFirebase | null>(null);
+  const [liked, setLiked] = useState<boolean>(false);
 
   const router = useRouter();
 
   //const { id, user, authorId, time, petType, category, description, image } = params as Record<string, string | undefined>;
   const id = params.id as string | undefined;
 
-  useEffect(() => {
+  const loadPost = useCallback(async () => {
     if (!id) return;
 
-    let isMounted = true;
+    try {
+      const data = await getCommunityPostFirebase(id);
+      if (data) setPost(data);
+    } catch (err) {
+      console.error("Failed to load post:", err);
+    }
+  }, [id]);
 
-    const loadPost = async () => {
+  useEffect(() => {
+    loadPost();
+  }, [loadPost]);
+
+  useEffect(() => {
+    const fetchAvatar = async () => {
       try {
-        setLoading(true);
-        const data = await getCommunityPostFirebase(id);
-        if (isMounted) setPost(data);
+        const authorProfile = await getUserProfileFirebase(post?.authorId || "");
+        setPostAvatarUrl(authorProfile?.avatar || null);
+        
+        const currentUser = getCurrentUser();
+        if (!currentUser) {
+          return;
+        }
+        if (!id){
+          return;
+        }
+        const profile = await getUserProfileFirebase(currentUser.uid);
+        setAvatarUrl(profile?.avatar || null);
+        const liked = currentUser ? await getLikeStatusFirebase(id, currentUser.uid) : false;
+        setLiked(liked);
       } catch (err) {
-        console.error("Failed to load post:", err);
-      } finally {
-        if (isMounted) setLoading(false);
+        console.error("Failed to fetch avatar:", err);
+        setPostAvatarUrl(null);
       }
     };
 
-    loadPost();
-    return () => {
-      isMounted = false;
-    };
-  }, [id]);
+    if (post?.authorId) {
+      fetchAvatar();
+    }
+  });
+
+  const toggleLike = async () => {
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      Alert.alert("Not Logged In", "Please log in to like posts.");
+      return;
+    }
+
+    try {
+      if (!id || !post) return;
+
+      // --- Optimistic update ---
+      setPost(prev => {
+        if (!prev) return prev; // if null, do nothing
+
+        return {
+          ...prev,
+          likes: liked ? Math.max(0, prev.likes - 1) : prev.likes + 1,
+        };
+      });
+
+      setLiked(!liked)
+
+      // --- Firebase update ---
+      await toggleLikeFirebase(id, currentUser.uid);
+
+      // --- Sync from Firebase ---
+      await loadPost();
+
+    } catch (error) {
+      console.error("Error toggling like:", error);
+      Alert.alert("Error", "Failed to update like status. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
+    }
+  };
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -94,10 +153,6 @@ export default function PostDetail() {
 
       setLoading(true);
       try {
-        // Load post author's avatar
-        const authorProfile = await getUserProfileFirebase(post.authorId);
-        setPostAvatarUrl(authorProfile?.avatar || null);
-
         console.log("Loading comments from Firebase for post:", id);
 
         // Load comments
@@ -141,39 +196,57 @@ export default function PostDetail() {
   const displayedTime = formatTimeValue(post?.createdAt.toISOString());
 
   const handlePostComment = async () => {
-    const trimmed = comment.trim();
-    if (!trimmed || !id) return;
-
-    // Check if user is logged in
     const currentUser = getCurrentUser();
+    if (!id || !comment.trim()) return;
+
     if (!currentUser) {
-      Alert.alert('Not Logged In', 'Please log in to comment.');
-      return;
+    Alert.alert('Not Logged In', 'Please log in to comment.');
+    return;
     }
-    
-    setSubmitting(true);
+
     try {
-      console.log('Adding comment to Firebase...');
-      console.log('Current user:', currentUser.uid, currentUser.displayName);
-      await addCommentFirebase({
-        postId: id as string,
-        authorId: currentUser.uid,
-        username: currentUser.displayName || 'User',
-        content: trimmed,
+      setSubmitting(true);
+      // --- Optimistic Update (increase local comment count immediately) ---
+      setPost(prev => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          comments: (prev.comments || 0) + 1,
+        };
       });
-      
-      console.log('Comment added! Reloading comments...');
-      loadComments();
+
+      // --- Send to Firebase ---
+      await addCommentFirebase({
+        postId: id,
+        authorId: currentUser.uid,
+        username: currentUser.displayName || "User",
+        content: comment.trim(),
+      });
+
+      // --- Clear input field ---
+      setComment("");
+
+      // --- Sync comments list ---
+      await loadComments();
+      await loadPost(); // refresh accurate count from Firebase
+
     } catch (error) {
-      console.error('Error posting comment:', error);
-      Alert.alert('Error', 'Failed to post comment. Please try again.');
+      console.error("Error posting comment:", error);
+      Alert.alert("Error", "Failed to post comment. Please try again.");
+
+      // --- Revert optimistic update ---
+      await loadPost();
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
-    console.log(`${option} clicked for post: ${selectedComment}`);
+    if (!id) {
+      Alert.alert("Error", "Post ID is missing.");
+      return;
+    }
 
     if (option === "Delete") {
       try {
@@ -181,17 +254,36 @@ export default function PostDetail() {
           Alert.alert("Error", "No comment selected.");
           return;
         }
-        const response = await deleteCommunityCommentFirebase(selectedComment, id as string);
+
+        // --- Optimistic Update (decrease comment count immediately) ---
+        setPost(prev => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            comments: Math.max(0, (prev.comments || 0) - 1),
+          };
+        });
+
+        // --- Firebase delete ---
+        const response = await deleteCommunityCommentFirebase(selectedComment, id);
 
         if (response.success) {
-          loadComments();
+          // Refresh the comments list from Firebase
+          await loadComments();
+          await loadPost(); // ensure accurate count sync
           Alert.alert("Success", "Comment deleted successfully.");
         } else {
           Alert.alert("Error", "Failed to delete comment.");
+          await loadPost(); // revert optimistic change
         }
+
       } catch (err) {
         console.error(err);
         Alert.alert("Error", "Failed to delete comment.");
+
+        // --- Revert optimistic update ---
+        await loadPost();
       }
     }
     if (option === "Edit") {
@@ -233,46 +325,66 @@ export default function PostDetail() {
     keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0} // tweak if header height differs
     >
       <View style={styles.outer_container}>
-        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]}>
-          <View style={styles.cardHeader}>
-            {/* Avatar */}
-            <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
-              <Image
-                source={{
-                  uri:
-                    postAvatarUrl ||
-                    'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-                }}
-                style={styles.profilePic}
-              />
-            </TouchableOpacity>
-            {/* User info */}
-            <View style={{ marginLeft: 12 }}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]} keyboardShouldPersistTaps="handled">
+          <View style={styles.card}>
+          
+            <View style={styles.cardHeader}>
+              {/* Avatar */}
               <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
-                <Text style={styles.user}>{post?.username ?? 'Unknown'}</Text>
+                <Image
+                  source={{
+                    uri:
+                      postAvatarUrl ||
+                      'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+                  }}
+                  style={styles.profilePic}
+                />
               </TouchableOpacity>
-              <Text style={styles.time}>{displayedTime}</Text>
+              {/* User info */}
+              <View style={{ marginLeft: 12 }}>
+                <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
+                  <Text style={styles.user}>{post?.username ?? 'Unknown'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.time}>{displayedTime}</Text>
+              </View>
             </View>
-          </View>
 
-          {/* Meta info */}
-          <Text style={styles.meta}>{post?.petType ?? ''} • {post?.category ?? ''}</Text>
-          {/* Description */}
-          <Text style={styles.description}>
-            {post?.description ?? ''}
-            {post?.edits && post.edits.length > 0 && (
-              <Text
-                onPress={() => {
-                  setSelectedEdits(post.edits ?? []);
-                  setEditHistoryModalVisible(true);
-                }}
-                style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
-              >
-                (edited)
-              </Text>
-            )}
-          </Text>
-          {post?.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.image} /> : null}
+            {/* Meta info */}
+            <Text style={styles.meta}>{post?.petType ?? ''} • {post?.category ?? ''}</Text>
+            {/* Description */}
+            <Text style={styles.description}>
+              {post?.description ?? ''}
+              {post?.edits && post.edits.length > 0 && (
+                <Text
+                  onPress={() => {
+                    setSelectedEdits(post.edits ?? []);
+                    setEditHistoryModalVisible(true);
+                  }}
+                  style={{ color: "#666", fontSize: 10, marginLeft: 4 }}
+                >
+                  (edited)
+                </Text>
+              )}
+            </Text>
+            {post?.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.image} /> : null}
+
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 14 }}>
+                {/* Like */}
+                <TouchableOpacity
+                  onPress={() => toggleLike()}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4}}
+                >
+                  <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"}/>
+                  <Text>{post?.likes}</Text>
+                </TouchableOpacity>
+
+                {/* Comment Count */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4}}>
+                  <Ionicons name="chatbubble-outline" size={20} color="#444"/>
+                  <Text>{post?.comments ?? 0}</Text>
+                </View>
+              </View>
+          </View>
           
           <View style={{ marginTop: 30 }}>
             <View style={styles.commentInputRow}>
@@ -378,7 +490,7 @@ export default function PostDetail() {
                       )}
                     </View>
                     {/* "..." menu button ONLY for your comments */}
-                    {c.yours && !editing && (
+                    {c.yours && (
                       <TouchableOpacity
                         style={styles.postMenuButton}
                         onPress={() => {
@@ -481,6 +593,18 @@ const styles = StyleSheet.create({
   user: { 
     fontSize: 20, 
     fontWeight: '700' 
+  },
+
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderWidth: 1,            // adds border
+    borderColor: "#ddd",       // light gray border
   },
 
   cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
