@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, {useState, useCallback} from "react";
 import { 
   StyleSheet, ScrollView, View, Text, Image, ActivityIndicator, TouchableOpacity 
 } from "react-native";
@@ -21,7 +21,7 @@ export default function UserProfile() {
   
   const router = useRouter();
 
-  const loadUserPosts = React.useCallback(async (userId: string) => {
+  const loadUserPosts = useCallback(async (userId: string) => {
     setLoadingPosts(true);
     try {
     // Fetch community posts
@@ -36,40 +36,51 @@ export default function UserProfile() {
 
     setUserPosts(userCommunityPosts);
     setUserPlaydates(userPlaydatePosts);
-    console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
+      console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
     } catch (error) {
-    console.error('Error loading user posts:', error);
+      console.error('Error loading user posts:', error);
     } finally {
-    setLoadingPosts(false);
+      setLoadingPosts(false);
     }
-    }, []);
+  }, []);
   
-    useFocusEffect(
-        React.useCallback(() => {
-            console.log("Screen focused, refreshing author's posts & profile...");
+  useFocusEffect(
+    useCallback(() => {
+        console.log("Screen focused, refreshing author's posts & profile...");
 
-            if (authorId) {
-            // 1. Load posts
-            loadUserPosts(authorId);
+        if (authorId) {
+        // 1. Load posts
+        loadUserPosts(authorId);
 
-            // 2. Load profile
-            const fetchProfile = async () => {
-                try {
-                const profile = await getUserProfileFirebase(authorId);
-                setProfile(profile);
-                } catch (err) {
-                console.error("Failed to fetch profile:", err);
-                setProfile(null);
-                }
-            };
-
-            fetchProfile();
+        // 2. Load profile
+        const fetchProfile = async () => {
+            try {
+            const profile = await getUserProfileFirebase(authorId);
+            setProfile(profile);
+            } catch (err) {
+            console.error("Failed to fetch profile:", err);
+            setProfile(null);
             }
-        }, [authorId, loadUserPosts])
-        );
+        };
+
+        fetchProfile();
+        }
+    }, [authorId, loadUserPosts])
+  );
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
+      {loadingPosts && (
+        <View style={styles.fullScreenLoading}>
+          <Image
+            source={{
+              uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+            }}
+            style={styles.loadingImage}
+          />
+          <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+        </View>
+      )}
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
             <Image
@@ -169,14 +180,7 @@ export default function UserProfile() {
                           router.push({
                             pathname: '../communityPost',
                             params: {
-                              id: post.id,
-                              user: post.username,
-                              authorId: post.authorId,
-                              time: post.createdAt.toISOString() ?? '',
-                              petType: post.petType,
-                              category: post.category,
-                              description: post.description,
-                              image: post.imageUrl ? encodeURIComponent(post.imageUrl) : '',
+                              id: post.id
                             },
                           });
                         }}
@@ -219,19 +223,7 @@ export default function UserProfile() {
                           router.push({
                             pathname: "/playdatePost",
                             params: {
-                              id: playdate.id,
-                              authorId: playdate.authorId,
-                              title: playdate.title,
-                              user: playdate.username,
-                              time: playdate.createdAt.toLocaleString(),
-                              description: playdate.description,
-                              location: `${playdate.city}, ${playdate.state}`,
-                              date: playdate.whenAt,
-                              image: playdate.imageUrl ? encodeURIComponent(playdate.imageUrl) : "",
-                              address: playdate.address ?? "",
-                              city: playdate.city,
-                              state: playdate.state,
-                              zip: playdate.zip ?? "",
+                              id: playdate.id
                             },
                           })
                         }
@@ -246,7 +238,7 @@ export default function UserProfile() {
                           <Text style={styles.postDescription}>{playdate.description}</Text>
                           <View style={styles.playdateDetails}>
                             <Text style={styles.playdateDetailText}>{playdate.whenAt}</Text>
-                            <Text style={styles.playdateDetailText}>{playdate.place}</Text>
+                            <Text style={styles.playdateDetailText}>{playdate.city}</Text>
                           </View>
                           {playdate.imageUrl && (
                             <Image source={{ uri: playdate.imageUrl }} style={styles.postImage} />
@@ -505,4 +497,24 @@ infoDivider: {
   backgroundColor: '#eee',
   marginTop: 12,
 },
+fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
 });

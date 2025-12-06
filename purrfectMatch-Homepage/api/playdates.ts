@@ -478,3 +478,53 @@ export async function getParticipantsFirebase(postId: string): Promise<MiniProfi
     return [];
   }
 }
+
+export async function getJoinedPlaydatesFirebase(
+  userId: string
+): Promise<PlaydatePostFirebase[]> {
+  const joinedPlaydates: PlaydatePostFirebase[] = [];
+
+  // 1️⃣ Get all join documents for this user
+  const joinsRef = collection(db, "playdate_joins");
+  const q = query(joinsRef, where("userId", "==", userId));
+  const joinSnap = await getDocs(q);
+
+  const playdateIds = joinSnap.docs.map((doc) => doc.data().postId);
+
+  if (playdateIds.length === 0) return joinedPlaydates;
+
+  // 2️⃣ Fetch each playdate post
+  const postsRef = collection(db, "playdate_posts");
+
+  for (const playdateId of playdateIds) {
+    const playdateDoc = await getDoc(doc(postsRef, playdateId));
+
+    if (!playdateDoc.exists()) continue;
+
+    const data = playdateDoc.data();
+
+    joinedPlaydates.push({
+      id: playdateDoc.id,
+      authorId: data.authorId,
+      username: data.username,
+      title: data.title,
+      description: data.description,
+      edits: data.edits || [],
+      dogBreed: data.dogBreed,
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      neighborhood: data.neighborhood,
+      whenAt: data.whenAt,
+      imageUrl: data.imageUrl,
+      createdAt: data.createdAt.toDate ? data.createdAt.toDate() : data.createdAt, // Firestore Timestamp to JS Date
+      likes: data.likes || 0,
+      comments: data.comments || 0,
+      participants: data.participants || 0,
+      locationName: data.locationName,
+      location: data.location,
+    });
+  }
+
+  return joinedPlaydates;
+}

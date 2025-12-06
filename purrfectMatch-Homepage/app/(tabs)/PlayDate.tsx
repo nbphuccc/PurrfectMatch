@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase, toggleJoinFirebase, getJoinStatusFirebase } from "../../api/playdates";
 import MapView, { Marker, Circle } from 'react-native-maps';
@@ -22,6 +23,8 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
 import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
+
 import {timeAgo} from "../playdatePost";
 
 const US_STATES = [
@@ -117,7 +120,6 @@ export default function PlaydateScreen() {
     date: "",
     petBreed: "",
     city: "",
-    contactInfo: "",
     petImage: "",
     description: "",
     address: "",
@@ -568,7 +570,6 @@ export default function PlaydateScreen() {
         date: "",
         petBreed: "",
         city: "",
-        contactInfo: "",
         petImage: "",
         description: "",
         address: "",
@@ -700,7 +701,103 @@ export default function PlaydateScreen() {
           longitudeDelta: 0.05,
         }
     : undefined;
-    
+
+  function parseWhenAt(whenAt: string): Date {
+    // Normalize all weird spaces to normal spaces
+    const normalized = whenAt.replace(/\s+/g, " ").trim();
+    // Example after normalize: "2025-12-07 12:00 PM"
+
+    const [datePart, timePart, meridiem] = normalized.split(" ");
+
+    if (!datePart || !timePart || !meridiem) {
+      return new Date("invalid");
+    }
+
+    const [year, month, day] = datePart.split("-").map(Number);
+    let [hour, minute] = timePart.split(":").map(Number);
+
+    if (meridiem.toUpperCase() === "PM" && hour < 12) hour += 12;
+    if (meridiem.toUpperCase() === "AM" && hour === 12) hour = 0;
+
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  function getHourDifference(now: Date, eventTime: Date) {
+    // Only use hours of the day
+    const nowHour = now.getHours();
+    const eventHour = eventTime.getHours();
+
+    // If event is on a later day, add 24h per day difference
+    const dayDiff =
+      new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate()).getTime() -
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    const dayOffset = Math.round(dayDiff / (1000 * 60 * 60 * 24)); // whole days
+
+    return eventHour - nowHour + dayOffset * 24;
+  }
+
+  function getEventBadge(whenAt: string) {
+    const now = new Date();
+    const eventTime = parseWhenAt(whenAt);
+
+    if (isNaN(eventTime.getTime())) {
+      return { label: "Invalid date", status: "completed" };
+    }
+
+    const diffMs = eventTime.getTime() - now.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHoursClock = getHourDifference(now, eventTime);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfEventDay = new Date(
+      eventTime.getFullYear(),
+      eventTime.getMonth(),
+      eventTime.getDate()
+    );
+
+    const diffDays =
+      Math.round(
+        (startOfEventDay.getTime() - startOfToday.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+    const GRACE_HOURS = 2;
+    const graceMs = GRACE_HOURS * 60 * 60 * 1000;
+
+    // ✅ UPCOMING
+    if (diffMs > 0) {
+      if (diffMinutes < 60) {
+        return { label: `In ${diffMinutes}m`, status: "upcoming" };
+      }
+
+      if (diffHoursClock < 24) {
+        return { label: `In ${diffHoursClock}h`, status: "upcoming" };
+      }
+
+      if (diffDays === 1) {
+        return { label: "Tomorrow", status: "upcoming" };
+      }
+
+      return { label: `In ${diffDays} days`, status: "upcoming" };
+    }
+
+    // ✅ ONGOING
+    if (Math.abs(diffMs) <= graceMs) {
+      return { label: "Ongoing", status: "ongoing" };
+    }
+
+    // ✅ RECENTLY ENDED
+    const pastMinutes = Math.abs(diffMinutes);
+    if (pastMinutes < 120) {
+      return { label: `Ended ${pastMinutes}m ago`, status: "completed" };
+    }
+
+    // ✅ FULLY COMPLETED
+    return { label: "Completed", status: "completed" };
+  }
+
+  const formattedDate = formData.date || "Select Date";
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -715,9 +812,15 @@ export default function PlaydateScreen() {
             </Text>
 
             {loading && (
-              <Text style={{ textAlign: "center", marginTop: 8 }}>
-                Loading feed...
-              </Text>
+              <View style={styles.fullScreenLoading}>
+                <Image
+                  source={{
+                    uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+                  }}
+                  style={styles.loadingImage}
+                />
+                <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+              </View>
             )}
             {loadError && (
               <Text
@@ -857,9 +960,42 @@ export default function PlaydateScreen() {
                     {post.city}, {post.state}
                   </Text>
 
-                  {post.whenAt && (
-                    <Text style={styles.whenAt}>{post.whenAt}</Text>
-                  )}
+                  {post.whenAt && (() => {
+                    const badge = getEventBadge(post.whenAt);
+                    return (
+                      <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+                        <Text
+                          style={[
+                            styles.whenAt,
+                            {
+                              height: 24,       // same as badge
+                              lineHeight: 24,   // match text vertical space to badge
+                              marginBottom: 0,  // remove offset
+                            },
+                          ]}
+                        >
+                          {post.whenAt}
+                        </Text>
+
+                        <View
+                          style={[
+                            styles.badge,
+                            badge.status === "upcoming" && styles.badgeUpcoming,
+                            badge.status === "ongoing" && styles.badgeOngoing,
+                            badge.status === "completed" && styles.badgeCompleted,
+                            {
+                              height: 24,          // same as text
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginLeft: 6,       // optional spacing
+                            },
+                          ]}
+                        >
+                          <Text style={styles.badgeText}>{badge.label}</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   <Text
                     style={[
@@ -938,7 +1074,7 @@ export default function PlaydateScreen() {
           >
             <Text style={styles.formTitle}>Create a Playdate</Text>
 
-            <Text style={styles.label}>Time (required):</Text>
+            <Text style={styles.label}>Time:</Text>
             <TouchableOpacity
               onPress={() => setShowTimePicker(prev => !prev)}
               style={[styles.input, errors.time && styles.errorInput, { justifyContent: "center" }]}
@@ -948,76 +1084,60 @@ export default function PlaydateScreen() {
               </Text>
             </TouchableOpacity>
 
-            {showTimePicker && (
-              <DateTimePicker
-                value={selectedTime}
-                mode="time"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, date) => {
-                  if (Platform.OS !== "ios") setShowTimePicker(false);
-                  if (date) {
-                    setSelectedTime(date);
+             <>    
+            {/* Modal time picker */}
+            <DateTimePickerModal
+              isVisible={showTimePicker}
+              mode="time"
+              onConfirm={(date) => {
+                setSelectedTime(date);
 
-                    const formatted = date.toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    });
+                const formatted = date.toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true, // ensures AM/PM
+                });
 
-                    handleInputChange("time", formatted);
-                  }
-                }}
-                onTouchCancel={() => setShowTimePicker(false)}
-              />
-            )}
+                handleInputChange("time", formatted);
+                setShowTimePicker(false);
+              }}
+              onCancel={() => setShowTimePicker(false)}
+            />
+          </>
 
-            <Text style={styles.label}>Date (required):</Text>
+            <Text style={styles.label}>Date:</Text>
 
             <TouchableOpacity
-              onPress={() => setShowDatePicker(prev => !prev)}  
+              onPress={() => setShowDatePicker(true)}
               style={[styles.input, errors.date && styles.errorInput, { justifyContent: "center" }]}
             >
               <Text style={{ color: formData.date ? "#000" : "#999" }}>
-                {formData.date || "Select Date"}
+                {formattedDate}
               </Text>
             </TouchableOpacity>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={selectedDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                minimumDate={new Date()}   
-                onChange={(event, date) => {
-                  if (Platform.OS !== "ios") setShowDatePicker(false);
+            <DateTimePickerModal
+              isVisible={showDatePicker}
+              mode="date"
+              minimumDate={new Date()}
+              onConfirm={(date) => {
+                setSelectedDate(date);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, "0");
+                const day = String(date.getDate()).padStart(2, "0");
+                const formatted = `${year}-${month}-${day}`;
+                handleInputChange("date", formatted);
+                setShowDatePicker(false);
+              }}
+              onCancel={() => setShowDatePicker(false)}
+            />
 
-                  if (date) {
-                    setSelectedDate(date);
-
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, "0");
-                    const day = String(date.getDate()).padStart(2, "0");
-                    const formatted = `${year}-${month}-${day}`;
-
-                    handleInputChange("date", formatted);
-                  }
-                }}
-              />
-            )}
-
-            <Text style={styles.label}>Pet Breed (required):</Text>
+            <Text style={styles.label}>Pet Breed:</Text>
             <TextInput
               style={[styles.input, errors.petBreed && styles.errorInput]}
               placeholder="e.g. Golden Retriever"
               value={formData.petBreed}
               onChangeText={(text) => handleInputChange("petBreed", text)}
-            />
-
-            <Text style={styles.label}>Contact Info (optional):</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your phone or email"
-              value={formData.contactInfo}
-              onChangeText={(text) => handleInputChange("contactInfo", text)}
             />
 
             <Text style={styles.label}>Pet Photo (optional):</Text>
@@ -1042,7 +1162,7 @@ export default function PlaydateScreen() {
               onChangeText={(text) => handleInputChange("description", text)}
               multiline
             />
-                      <Text style={styles.label}>Playdate Location (required):</Text>
+                      <Text style={styles.label}>Playdate Location:</Text>
                       <TextInput
               style={styles.input}
               placeholder="Type park name or address"
@@ -1247,12 +1367,6 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
     marginTop: 6,
   },
-  whenAt: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "600",
-    marginBottom: 8,
-  },
   description: {
     color: "#444",
     marginTop: 8,
@@ -1297,32 +1411,79 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   buttonText: { fontWeight: "bold", color: "#000" },
-  joinButton: {
-  paddingHorizontal: 10,
-  paddingVertical: 5,
-  borderRadius: 6,
-  alignSelf: "center",
-},
+    joinButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignSelf: "center",
+  },
 
-joinButtonText: {
-  color: "white",
-  fontWeight: "600",
-  fontSize: 13,
-},
+  joinButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 
   participantsBadge: {
-  backgroundColor: "#FFE8D6",   // soft warm orange background
-  paddingHorizontal: 10,
-  paddingVertical: 3,
-  borderRadius: 12,
-  marginBottom: 6,
-  alignSelf: "center",
+    backgroundColor: "#FFE8D6",   // soft warm orange background
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginBottom: 6,
+    alignSelf: "center",
+  },
+
+  participantsBadgeText: {
+    color: "#F97316",             // vibrant orange text
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
+  whenAt: {
+  fontSize: 14,
+  color: "#666",
+  fontWeight: "600",
+  height: 24,
+  lineHeight: 24,
 },
 
-participantsBadgeText: {
-  color: "#F97316",             // vibrant orange text
+badge: {
+  height: 24,
+  paddingHorizontal: 6,
+  borderRadius: 10,
+  justifyContent: "center",
+  alignItems: "center",
+},
+
+badgeUpcoming: { backgroundColor: "#2563EB" },
+badgeOngoing: { backgroundColor: "#16A34A" },
+badgeCompleted: { backgroundColor: "#6B7280" },
+
+badgeText: {
+  color: "#fff",
   fontSize: 12,
   fontWeight: "600",
-},
+}
+
 
 });

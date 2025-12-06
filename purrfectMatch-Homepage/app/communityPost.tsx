@@ -43,7 +43,8 @@ export default function PostDetail() {
   const params = useLocalSearchParams();
   const [comment, setComment] = useState('');
   const [commentsList, setCommentsList] = useState<DisplayComment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingPost, setLoadingPost] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
@@ -77,32 +78,34 @@ export default function PostDetail() {
   }, [loadPost]);
 
   useEffect(() => {
-    const fetchAvatar = async () => {
+    const fetchAvatarAndStatus = async () => {
+      setLoadingPost(true);
       try {
-        const authorProfile = await getUserProfileFirebase(post?.authorId || "");
+        // Only inside the function now
+        if (!post?.authorId) return;
+
+        const authorProfile = await getUserProfileFirebase(post.authorId);
         setPostAvatarUrl(authorProfile?.avatar || null);
-        
+
         const currentUser = getCurrentUser();
-        if (!currentUser) {
-          return;
-        }
-        if (!id){
-          return;
-        }
+        if (!currentUser || !id) return;
+
         const profile = await getUserProfileFirebase(currentUser.uid);
         setAvatarUrl(profile?.avatar || null);
-        const liked = currentUser ? await getLikeStatusFirebase(id, currentUser.uid) : false;
+
+        const liked = await getLikeStatusFirebase(id, currentUser.uid);
         setLiked(liked);
+
       } catch (err) {
-        console.error("Failed to fetch avatar:", err);
+        console.error("Failed to fetch avatar or status:", err);
         setPostAvatarUrl(null);
+      } finally {
+        setLoadingPost(false);
       }
     };
 
-    if (post?.authorId) {
-      fetchAvatar();
-    }
-  });
+    fetchAvatarAndStatus();
+  }, [post?.authorId, id]);
 
   const toggleLike = async () => {
     const currentUser = getCurrentUser();
@@ -326,6 +329,17 @@ export default function PostDetail() {
     >
       <View style={styles.outer_container}>
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]} keyboardShouldPersistTaps="handled">
+          {loadingPost && (
+            <View style={styles.fullScreenLoading}>
+              <Image
+                source={{
+                  uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+                }}
+                style={styles.loadingImage}
+              />
+              <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+            </View>
+          )}
           <View style={styles.card}>
           
             <View style={styles.cardHeader}>
@@ -697,4 +711,24 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
   modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
   modalOptionText: { fontSize: 16 },
+  fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
 });

@@ -251,7 +251,7 @@ export default function CreateCommunityPost({ onSubmit, onCancel, isSubmitting }
       )}
 
       {/* Description */}
-      <Text style={{ fontSize: 16, marginTop: 10 }}>Description (required):</Text>
+      <Text style={{ fontSize: 16, marginTop: 10 }}>Description:</Text>
       <TextInput
         style={[
           {

@@ -13,6 +13,7 @@ import {
   Modal,
   Alert,
   TouchableWithoutFeedback,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,32 +49,11 @@ export function timeAgo(date: Date) {
 export default function PlaydatePost() {
   const params = useLocalSearchParams();
 
-  //const getParamString = (value: string | string[] | undefined): string | undefined =>
-    //Array.isArray(value) ? value[0] : typeof value === "string" ? value : undefined;
-
   const postId = params.id as string | undefined;
-  /*
-  const postId = getParamString(params.id) || "";
-  const authorId = getParamString(params.authorId) || "";
-  const title = getParamString(params.title) || "Playdate";
-  const location = getParamString(params.location) || "Location: TBD";
-  const date = getParamString(params.date) || "Date: TBD";
-  const address = getParamString(params.address);
-  const city = getParamString(params.city);
-  const state = getParamString(params.state);
-  const zip = getParamString(params.zip);
-  const username = getParamString(params.user) || "User";
-  const time = getParamString(params.time) || "Just now";
-  const description =
-    getParamString(params.description) ||
-    "No description provided for this playdate.";
-
-  const rawImage = getParamString(params.image);
-  const image = rawImage || undefined;
-  */
 
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
+  const [loadingPost, setLoadingPost] = useState<boolean>(true);
   const [loadingComments, setLoadingComments] = useState(true);
   const [loadingMap, setLoadingMap] = useState(false);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
@@ -108,40 +88,51 @@ export default function PlaydatePost() {
   }, [postId]);
 
   useEffect(() => {
-    loadPost();
-  }, [loadPost]);
+    const fetchPostAndAvatar = async () => {
+      setLoadingPost(true); // start loading
 
-  useEffect(() => {
-    const fetchAvatar = async () => {
       try {
-        const authorProfile = await getUserProfileFirebase(post?.authorId || "");
+        // Load the post
+        await loadPost();
+
+        if (!post?.authorId) {
+          setLoadingPost(false);
+          return;
+        }
+
+        // Get author's profile
+        const authorProfile = await getUserProfileFirebase(post.authorId);
         setPostAvatarUrl(authorProfile?.avatar || null);
-        if (authorProfile?.publicEmail){
+        if (authorProfile?.publicEmail) {
           setAuthorEmail(authorProfile.email);
         }
+
         const currentUser = getCurrentUser();
-        if (!currentUser) {
+        if (!currentUser || !postId) {
+          setLoadingPost(false);
           return;
         }
-        if (!postId){
-          return;
-        }
+
+        // Get current user's profile
         const profile = await getUserProfileFirebase(currentUser.uid);
         setAvatarUrl(profile?.avatar || null);
-        const liked = currentUser ? await getLikeStatusFirebase(postId, currentUser.uid) : false;
-        const joined = currentUser ? await getJoinStatusFirebase(postId, currentUser.uid) : false;
+
+        // Fetch like/join status
+        const liked = await getLikeStatusFirebase(postId, currentUser.uid);
+        const joined = await getJoinStatusFirebase(postId, currentUser.uid);
         setLiked(liked);
         setJoined(joined);
+
       } catch (err) {
-        console.error("Failed to fetch avatar:", err);
+        console.error("Failed to fetch post/avatar/status:", err);
         setPostAvatarUrl(null);
+      } finally {
+        setLoadingPost(false); // done loading
       }
     };
 
-    if (post?.authorId) {
-      fetchAvatar();
-    }
-  });
+    fetchPostAndAvatar();
+  }, [loadPost, post?.authorId, postId]);
 
   const toggleJoinPlaydate = async () => {
     const currentUser = getCurrentUser();
@@ -471,6 +462,100 @@ export default function PlaydatePost() {
         }
     : undefined;
 
+  function parseWhenAt(whenAt: string): Date {
+    // Normalize all weird spaces to normal spaces
+    const normalized = whenAt.replace(/\s+/g, " ").trim();
+    // Example after normalize: "2025-12-07 12:00 PM"
+
+    const [datePart, timePart, meridiem] = normalized.split(" ");
+
+    if (!datePart || !timePart || !meridiem) {
+      return new Date("invalid");
+    }
+
+    const [year, month, day] = datePart.split("-").map(Number);
+    let [hour, minute] = timePart.split(":").map(Number);
+
+    if (meridiem.toUpperCase() === "PM" && hour < 12) hour += 12;
+    if (meridiem.toUpperCase() === "AM" && hour === 12) hour = 0;
+
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  function getHourDifference(now: Date, eventTime: Date) {
+    // Only use hours of the day
+    const nowHour = now.getHours();
+    const eventHour = eventTime.getHours();
+
+    // If event is on a later day, add 24h per day difference
+    const dayDiff =
+      new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate()).getTime() -
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    const dayOffset = Math.round(dayDiff / (1000 * 60 * 60 * 24)); // whole days
+
+    return eventHour - nowHour + dayOffset * 24;
+  }
+
+  function getEventBadge(whenAt: string) {
+    const now = new Date();
+    const eventTime = parseWhenAt(whenAt);
+
+    if (isNaN(eventTime.getTime())) {
+      return { label: "Invalid date", status: "completed" };
+    }
+
+    const diffMs = eventTime.getTime() - now.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHoursClock = getHourDifference(now, eventTime);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfEventDay = new Date(
+      eventTime.getFullYear(),
+      eventTime.getMonth(),
+      eventTime.getDate()
+    );
+
+    const diffDays =
+      Math.round(
+        (startOfEventDay.getTime() - startOfToday.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+    const GRACE_HOURS = 2;
+    const graceMs = GRACE_HOURS * 60 * 60 * 1000;
+
+    // ✅ UPCOMING
+    if (diffMs > 0) {
+      if (diffMinutes < 60) {
+        return { label: `In ${diffMinutes}m`, status: "upcoming" };
+      }
+
+      if (diffHoursClock < 24) {
+        return { label: `In ${diffHoursClock}h`, status: "upcoming" };
+      }
+
+      if (diffDays === 1) {
+        return { label: "Tomorrow", status: "upcoming" };
+      }
+
+      return { label: `In ${diffDays} days`, status: "upcoming" };
+    }
+
+    // ✅ ONGOING
+    if (Math.abs(diffMs) <= graceMs) {
+      return { label: "Ongoing", status: "ongoing" };
+    }
+
+    // ✅ RECENTLY ENDED
+    const pastMinutes = Math.abs(diffMinutes);
+    if (pastMinutes < 120) {
+      return { label: `Ended ${pastMinutes}m ago`, status: "completed" };
+    }
+
+    // ✅ FULLY COMPLETED
+    return { label: "Completed", status: "completed" };
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -478,6 +563,17 @@ export default function PlaydatePost() {
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+        {loadingPost && (
+          <View style={styles.fullScreenLoading}>
+            <Image
+              source={{
+                uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+              }}
+              style={styles.loadingImage}
+            />
+            <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+          </View>
+        )}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
@@ -507,7 +603,6 @@ export default function PlaydatePost() {
                 </View>
               </TouchableOpacity>
 
-
               <TouchableOpacity
                 style={[
                   styles.joinButton,
@@ -531,7 +626,42 @@ export default function PlaydatePost() {
 
           <Text style={styles.title}>{post?.title}</Text>
           <Text style={styles.subtitle}>{post?.locationName}</Text>
-          <Text style={styles.subtitle}>{post?.whenAt}</Text>
+          {post?.whenAt && (() => {
+            const badge = getEventBadge(post.whenAt);
+            return (
+              <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+                <Text
+                  style={[
+                    styles.whenAt,
+                    {
+                      height: 24,       // same as badge
+                      lineHeight: 24,   // match text vertical space to badge
+                      marginBottom: 0,  // remove offset
+                    },
+                  ]}
+                >
+                  {post.whenAt}
+                </Text>
+
+                <View
+                  style={[
+                    styles.badge,
+                    badge.status === "upcoming" && styles.badgeUpcoming,
+                    badge.status === "ongoing" && styles.badgeOngoing,
+                    badge.status === "completed" && styles.badgeCompleted,
+                    {
+                      height: 24,          // same as text
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginLeft: 6,       // optional spacing
+                    },
+                  ]}
+                >
+                  <Text style={styles.badgeText}>{badge.label}</Text>
+                </View>
+              </View>
+            );
+          })()}
 
           {/* --- DESCRIPTION --- */}
           <Text style={styles.description}>
@@ -623,7 +753,6 @@ export default function PlaydatePost() {
               <Text>{post?.comments ?? 0}</Text>
             </View>
           </View>
-
         </View>
 
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
@@ -807,19 +936,22 @@ export default function PlaydatePost() {
                 <TouchableWithoutFeedback>
                   <View style={styles.participantsModalContent}>
                     <Text style={styles.participantsModalTitle}>Participants</Text>
-
                     <ScrollView style={styles.participantsModalList}>
                       {participantsList?.map((participant) => (
                         <TouchableOpacity
                           key={participant.id}
                           style={styles.participantsModalItem}
                           activeOpacity={0.7}
-                          onPress={() =>
+                          onPress={() => {
+                            if (Platform.OS === 'ios') {
+                              setParticipantsModalVisible(false);
+                            }
+
                             router.push({
-                              pathname: "/userProfile",
+                              pathname: '/userProfile',
                               params: { authorId: participant.id },
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Image
                             source={{ uri: participant.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
@@ -831,7 +963,6 @@ export default function PlaydatePost() {
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
-
                   </View>
                 </TouchableWithoutFeedback>
               </View>
@@ -1051,4 +1182,50 @@ const styles = StyleSheet.create({
     color: "#000000ff",
     marginLeft: 10,
   },
+
+  fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
+  whenAt: {
+  fontSize: 14,
+  color: "#666",
+  height: 24,
+  lineHeight: 24,
+},
+
+badge: {
+  height: 24,
+  paddingHorizontal: 6,
+  borderRadius: 10,
+  justifyContent: "center",
+  alignItems: "center",
+},
+
+badgeUpcoming: { backgroundColor: "#2563EB" },
+badgeOngoing: { backgroundColor: "#16A34A" },
+badgeCompleted: { backgroundColor: "#6B7280" },
+
+badgeText: {
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: "600",
+}
+
 });
