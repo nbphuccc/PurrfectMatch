@@ -796,13 +796,7 @@ export default function PlaydateScreen() {
     return { label: "Completed", status: "completed" };
   }
 
-  const formattedTime = selectedTime.toLocaleTimeString([], {
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true, // ensures AM/PM
-});
-
-const formattedDate = formData.date || "Select Date";
+  const formattedDate = formData.date || "Select Date";
 
   return (
     <KeyboardAvoidingView
@@ -1114,29 +1108,29 @@ const formattedDate = formData.date || "Select Date";
             <Text style={styles.label}>Date:</Text>
 
             <TouchableOpacity
-  onPress={() => setShowDatePicker(true)}
-  style={[styles.input, errors.date && styles.errorInput, { justifyContent: "center" }]}
->
-  <Text style={{ color: formData.date ? "#000" : "#999" }}>
-    {formattedDate}
-  </Text>
-</TouchableOpacity>
+              onPress={() => setShowDatePicker(true)}
+              style={[styles.input, errors.date && styles.errorInput, { justifyContent: "center" }]}
+            >
+              <Text style={{ color: formData.date ? "#000" : "#999" }}>
+                {formattedDate}
+              </Text>
+            </TouchableOpacity>
 
-<DateTimePickerModal
-  isVisible={showDatePicker}
-  mode="date"
-  minimumDate={new Date()}
-  onConfirm={(date) => {
-    setSelectedDate(date);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const formatted = `${year}-${month}-${day}`;
-    handleInputChange("date", formatted);
-    setShowDatePicker(false);
-  }}
-  onCancel={() => setShowDatePicker(false)}
-/>
+            <DateTimePickerModal
+              isVisible={showDatePicker}
+              mode="date"
+              minimumDate={new Date()}
+              onConfirm={(date) => {
+                setSelectedDate(date);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, "0");
+                const day = String(date.getDate()).padStart(2, "0");
+                const formatted = `${year}-${month}-${day}`;
+                handleInputChange("date", formatted);
+                setShowDatePicker(false);
+              }}
+              onCancel={() => setShowDatePicker(false)}
+            />
 
             <Text style={styles.label}>Pet Breed:</Text>
             <TextInput

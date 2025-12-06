@@ -620,41 +620,41 @@ export default function Profile() {
 
                   <View style={styles.playdateDetails}>
                     {playdate.whenAt && (() => {
-                                        const badge = getEventBadge(playdate.whenAt);
-                                        return (
-                                          <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-                                            <Text
-                                              style={[
-                                                styles.whenAt,
-                                                {
-                                                  height: 24,       // same as badge
-                                                  lineHeight: 24,   // match text vertical space to badge
-                                                  marginBottom: 0,  // remove offset
-                                                },
-                                              ]}
-                                            >
-                                              {playdate.whenAt}
-                                            </Text>
-                    
-                                            <View
-                                              style={[
-                                                styles.badge,
-                                                badge.status === "upcoming" && styles.badgeUpcoming,
-                                                badge.status === "ongoing" && styles.badgeOngoing,
-                                                badge.status === "completed" && styles.badgeCompleted,
-                                                {
-                                                  height: 24,          // same as text
-                                                  justifyContent: "center",
-                                                  alignItems: "center",
-                                                  marginLeft: 6,       // optional spacing
-                                                },
-                                              ]}
-                                            >
-                                              <Text style={styles.badgeText}>{badge.label}</Text>
-                                            </View>
-                                          </View>
-                                        );
-                                      })()}
+                      const badge = getEventBadge(playdate.whenAt);
+                      return (
+                        <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+                          <Text
+                            style={[
+                              styles.whenAt,
+                              {
+                                height: 24,       // same as badge
+                                lineHeight: 24,   // match text vertical space to badge
+                                marginBottom: 0,  // remove offset
+                              },
+                            ]}
+                          >
+                            {playdate.whenAt}
+                          </Text>
+  
+                          <View
+                            style={[
+                              styles.badge,
+                              badge.status === "upcoming" && styles.badgeUpcoming,
+                              badge.status === "ongoing" && styles.badgeOngoing,
+                              badge.status === "completed" && styles.badgeCompleted,
+                              {
+                                height: 24,          // same as text
+                                justifyContent: "center",
+                                alignItems: "center",
+                                marginLeft: 6,       // optional spacing
+                              },
+                            ]}
+                          >
+                            <Text style={styles.badgeText}>{badge.label}</Text>
+                          </View>
+                        </View>
+                      );
+                    })()}
                     <Text style={styles.playdateDetailText}>{playdate.city}</Text>
                   </View>
 
