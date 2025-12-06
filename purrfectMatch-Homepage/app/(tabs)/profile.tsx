@@ -717,6 +717,7 @@ export default function Profile() {
                           {/* Top-right menu */}
                           <TouchableOpacity
                             style={styles.postMenuButton}
+                            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                             onPress={(e) => {
                               e.stopPropagation();
                               setMenuVisible(true);
@@ -821,6 +822,7 @@ export default function Profile() {
                         <View style={styles.postCard}>
                           <TouchableOpacity
                             style={styles.postMenuButton}
+                            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
                             onPress={(e) => {
                               e.stopPropagation();
                               setMenuVisible(true);
