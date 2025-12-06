@@ -5,14 +5,25 @@ import { signupFirebase } from "../api/firebaseAuth";
 
 export default function SignUp() {
   const router = useRouter()
+
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState(''); // ✅ NEW
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
-    if (!email || !username || !password) {
+    setPasswordError('');
+
+    if (!email || !username || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill out all fields");
+      return;
+    }
+
+    // ✅ INLINE PASSWORD CHECK
+    if (password !== confirmPassword) {
+      setPasswordError("Passwords do not match");
       return;
     }
 
@@ -34,16 +45,16 @@ export default function SignUp() {
         setEmail("");
         setUsername("");
         setPassword("");
+        setConfirmPassword("");
+        setPasswordError("");
       } else {
         Alert.alert("Signup failed", data.message || "Something went wrong");
         setLoading(false);
-        console.log('Signup failed:', data.message);
       }
     } catch (error: any) {
       const message = error.message || "Could not connect to Firebase";
       Alert.alert("Signup failed", message);
       setLoading(false);
-      console.error('Signup error:', error);
     }
   };
 
@@ -52,37 +63,54 @@ export default function SignUp() {
       <View style={styles.signUp}>
         <Text style={styles.title}>Sign Up</Text>
 
-        <Text style={styles.account_create}>enter your email</Text>
+        <Text style={styles.account_create}>Enter your email</Text>
         <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
-          placeholder="enter your email"
-          placeholderTextColor="#888"
-          autoCapitalize='none'
-          keyboardType='email-address'
+          autoCapitalize="none"
+          keyboardType="email-address"
         />
-         
-        <Text style={styles.account_create}>enter your username</Text>
+
+        <Text style={styles.account_create}>Enter your username</Text>
         <TextInput
           style={styles.input}
           value={username}
           onChangeText={setUsername}
-          placeholder="enter your username"
-          placeholderTextColor="#888"
-          autoCapitalize='none'
+          autoCapitalize="none"
         />
 
-        <Text style={styles.account_create}>enter your password</Text>
+        <Text style={styles.account_create}>Enter your password</Text>
         <TextInput
           style={styles.input}
           value={password}
-          onChangeText={setPassword}
-          placeholder="enter your password"
-          placeholderTextColor="#888"
-          autoCapitalize='none'
-          secureTextEntry={true}
+          onChangeText={(text) => {
+            setPassword(text);
+            setPasswordError('');
+          }}
+          autoCapitalize="none"
+          secureTextEntry
         />
+
+        <Text style={styles.account_create}>Re-enter your password</Text>
+        <TextInput
+          style={[
+            styles.input,
+            passwordError && { borderColor: 'red' } // ✅ RED BORDER ON ERROR
+          ]}
+          value={confirmPassword}
+          onChangeText={(text) => {
+            setConfirmPassword(text);
+            setPasswordError('');
+          }}
+          autoCapitalize="none"
+          secureTextEntry
+        />
+
+        {/* ✅ RED ERROR TEXT */}
+        {passwordError ? (
+          <Text style={styles.errorText}>{passwordError}</Text>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.button, loading && { backgroundColor: "#aaa" }]}
@@ -142,5 +170,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "600"
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 13,
+    marginTop: -12,
+    marginBottom: 12,
   },
 })
