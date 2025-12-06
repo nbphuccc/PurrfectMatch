@@ -810,7 +810,7 @@ export default function PlaydateScreen() {
               One Simple Post, One Fun Play Date!
             </Text>
 
-            {loading && (
+            {loading || uploadingImage && (
               <View style={styles.fullScreenLoading}>
                 <Image
                   source={{
