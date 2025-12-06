@@ -1206,7 +1206,6 @@ const styles = StyleSheet.create({
   whenAt: {
   fontSize: 14,
   color: "#666",
-  fontWeight: "600",
   height: 24,
   lineHeight: 24,
 },

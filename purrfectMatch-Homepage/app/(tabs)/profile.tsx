@@ -5,7 +5,7 @@ import { loginFirebase, logoutFirebase, getCurrentUser, setUserProfileFirebase, 
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../config/firebase';
 import { listCommunityPostsFirebase, CommunityPostFirebase, deleteCommunityPostFirebase, editCommunityPostFirebase } from '../../api/community';
-import { listPlaydatesFirebase, PlaydatePostFirebase, deletePlaydatePostFirebase, editPlaydatePostFirebase } from '../../api/playdates';
+import { listPlaydatesFirebase, PlaydatePostFirebase, deletePlaydatePostFirebase, editPlaydatePostFirebase, getJoinedPlaydatesFirebase } from '../../api/playdates';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -29,6 +29,7 @@ export default function Profile() {
   const [selectedPost, setSelectedPost] = useState<{postId: string; type: 'community' | 'playdate'} | null>(null);
   const [isEditingPost, setIsEditingPost] = useState<boolean>(false);
   const [editedPostDescription, setEditedPostDescription] = useState<string | null>(null);
+  const [joinedPlaydates, setJoinedPlaydates] = useState<PlaydatePostFirebase[]>([]);
 
   const router = useRouter();
 
@@ -36,16 +37,20 @@ export default function Profile() {
     const currentUser = getCurrentUser();
     setLoadingPosts(true);
     try {
+      if (!currentUser) return;
       // Fetch community posts
       const allCommunityPosts = await listCommunityPostsFirebase();
       const userCommunityPosts = allCommunityPosts
-        .filter(post => post.authorId === currentUser?.uid)
+        .filter(post => post.authorId === currentUser.uid)
         .map(post => ({ ...post, type: 'community' as const }));
 
       // Fetch playdates
       const allPlaydates = await listPlaydatesFirebase();
-      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === currentUser?.uid);
+      const userPlaydatePosts = allPlaydates.filter(post => post.authorId === currentUser.uid);
 
+      const joinedPlaydates = await getJoinedPlaydatesFirebase(currentUser.uid);
+
+      setJoinedPlaydates(joinedPlaydates);
       setUserPosts(userCommunityPosts);
       setUserPlaydates(userPlaydatePosts);
       console.log(`Loaded ${userCommunityPosts.length} community posts and ${userPlaydatePosts.length} playdates`);
@@ -285,6 +290,100 @@ export default function Profile() {
     }
   };
 
+  function parseWhenAt(whenAt: string): Date {
+    // Normalize all weird spaces to normal spaces
+    const normalized = whenAt.replace(/\s+/g, " ").trim();
+    // Example after normalize: "2025-12-07 12:00 PM"
+
+    const [datePart, timePart, meridiem] = normalized.split(" ");
+
+    if (!datePart || !timePart || !meridiem) {
+      return new Date("invalid");
+    }
+
+    const [year, month, day] = datePart.split("-").map(Number);
+    let [hour, minute] = timePart.split(":").map(Number);
+
+    if (meridiem.toUpperCase() === "PM" && hour < 12) hour += 12;
+    if (meridiem.toUpperCase() === "AM" && hour === 12) hour = 0;
+
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  function getHourDifference(now: Date, eventTime: Date) {
+    // Only use hours of the day
+    const nowHour = now.getHours();
+    const eventHour = eventTime.getHours();
+
+    // If event is on a later day, add 24h per day difference
+    const dayDiff =
+      new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate()).getTime() -
+      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    const dayOffset = Math.round(dayDiff / (1000 * 60 * 60 * 24)); // whole days
+
+    return eventHour - nowHour + dayOffset * 24;
+  }
+
+  function getEventBadge(whenAt: string) {
+    const now = new Date();
+    const eventTime = parseWhenAt(whenAt);
+
+    if (isNaN(eventTime.getTime())) {
+      return { label: "Invalid date", status: "completed" };
+    }
+
+    const diffMs = eventTime.getTime() - now.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHoursClock = getHourDifference(now, eventTime);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfEventDay = new Date(
+      eventTime.getFullYear(),
+      eventTime.getMonth(),
+      eventTime.getDate()
+    );
+
+    const diffDays =
+      Math.round(
+        (startOfEventDay.getTime() - startOfToday.getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+
+    const GRACE_HOURS = 2;
+    const graceMs = GRACE_HOURS * 60 * 60 * 1000;
+
+    // ✅ UPCOMING
+    if (diffMs > 0) {
+      if (diffMinutes < 60) {
+        return { label: `In ${diffMinutes}m`, status: "upcoming" };
+      }
+
+      if (diffHoursClock < 24) {
+        return { label: `In ${diffHoursClock}h`, status: "upcoming" };
+      }
+
+      if (diffDays === 1) {
+        return { label: "Tomorrow", status: "upcoming" };
+      }
+
+      return { label: `In ${diffDays} days`, status: "upcoming" };
+    }
+
+    // ✅ ONGOING
+    if (Math.abs(diffMs) <= graceMs) {
+      return { label: "Ongoing", status: "ongoing" };
+    }
+
+    // ✅ RECENTLY ENDED
+    const pastMinutes = Math.abs(diffMinutes);
+    if (pastMinutes < 120) {
+      return { label: `Ended ${pastMinutes}m ago`, status: "completed" };
+    }
+
+    // ✅ FULLY COMPLETED
+    return { label: "Completed", status: "completed" };
+  }
+
   if (!isLoggedIn) {
     return (
       <View style={styles.container}>
@@ -488,6 +587,102 @@ export default function Profile() {
             {isEditingProfile ? "Apply Changes" : "Edit"}
           </Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Joined Playdates Section */}
+      <View style={styles.postsSection}>
+        <Text style={styles.sectionTitle}>Joined Playdates ({joinedPlaydates.length})</Text>
+
+        {joinedPlaydates.length > 0 && (
+          <View style={styles.postTypeSection}>
+            {joinedPlaydates.map((playdate) => (
+              <TouchableOpacity
+                key={playdate.id}
+                activeOpacity={0.8}
+                onPress={() =>
+                  router.push({
+                    pathname: "/playdatePost",
+                    params: { id: playdate.id },
+                  })
+                }
+              >
+                <View style={styles.postCard}>
+                  <Text style={styles.playdateTitle}>{playdate.title}</Text>
+
+                  <View style={styles.playdateInfo}>
+                    <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
+                    <Text style={styles.playdateLabel}>
+                      {playdate.city}, {playdate.state}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.postDescription}>{playdate.description}</Text>
+
+                  <View style={styles.playdateDetails}>
+                    {playdate.whenAt && (() => {
+                                        const badge = getEventBadge(playdate.whenAt);
+                                        return (
+                                          <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+                                            <Text
+                                              style={[
+                                                styles.whenAt,
+                                                {
+                                                  height: 24,       // same as badge
+                                                  lineHeight: 24,   // match text vertical space to badge
+                                                  marginBottom: 0,  // remove offset
+                                                },
+                                              ]}
+                                            >
+                                              {playdate.whenAt}
+                                            </Text>
+                    
+                                            <View
+                                              style={[
+                                                styles.badge,
+                                                badge.status === "upcoming" && styles.badgeUpcoming,
+                                                badge.status === "ongoing" && styles.badgeOngoing,
+                                                badge.status === "completed" && styles.badgeCompleted,
+                                                {
+                                                  height: 24,          // same as text
+                                                  justifyContent: "center",
+                                                  alignItems: "center",
+                                                  marginLeft: 6,       // optional spacing
+                                                },
+                                              ]}
+                                            >
+                                              <Text style={styles.badgeText}>{badge.label}</Text>
+                                            </View>
+                                          </View>
+                                        );
+                                      })()}
+                    <Text style={styles.playdateDetailText}>{playdate.city}</Text>
+                  </View>
+
+                  {playdate.imageUrl && (
+                    <Image
+                      source={{ uri: playdate.imageUrl }}
+                      style={styles.postImage}
+                    />
+                  )}
+
+                  <View style={styles.postFooter}>
+                    <Text style={styles.postStats}>{playdate.likes} likes</Text>
+                    <Text style={styles.postStats}>{playdate.comments} comments</Text>
+                    <Text style={styles.postDate}>
+                      {playdate.createdAt.toLocaleDateString()}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {joinedPlaydates.length === 0 && (
+          <Text style={{ color: "#666", marginTop: 8 }}>
+            Go join the fun!
+          </Text>
+        )}
       </View>
 
       {/* User's Posts Section */}
@@ -1097,4 +1292,28 @@ const styles = StyleSheet.create({
   loadingSpinner: {
     marginTop: 10,
   },
+  whenAt: {
+  fontSize: 13,
+  color: '#555',
+  height: 24,
+  lineHeight: 24,
+},
+
+badge: {
+  height: 24,
+  paddingHorizontal: 6,
+  borderRadius: 10,
+  justifyContent: "center",
+  alignItems: "center",
+},
+
+badgeUpcoming: { backgroundColor: "#2563EB" },
+badgeOngoing: { backgroundColor: "#16A34A" },
+badgeCompleted: { backgroundColor: "#6B7280" },
+
+badgeText: {
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: "600",
+}
 });
