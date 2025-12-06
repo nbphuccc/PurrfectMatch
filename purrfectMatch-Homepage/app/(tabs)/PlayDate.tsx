@@ -22,7 +22,6 @@ import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
 import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 import {timeAgo} from "../playdatePost";

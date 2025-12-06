@@ -11,9 +11,6 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { app } from '../../config/firebase';
 import { getCurrentUser, getUserProfileFirebase } from '../../api/firebaseAuth';
 
-const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
-const CATEGORIES = ['Resource', 'Care', 'Other'];
-
 type Post = {
   id: number;
   firebaseId: string;
