@@ -1089,6 +1089,7 @@ export default function PlaydateScreen() {
             <DateTimePickerModal
               isVisible={showTimePicker}
               mode="time"
+              display="spinner" 
               onConfirm={(date) => {
                 setSelectedTime(date);
 
@@ -1119,6 +1120,7 @@ export default function PlaydateScreen() {
             <DateTimePickerModal
               isVisible={showDatePicker}
               mode="date"
+              display="spinner"  
               minimumDate={new Date()}
               onConfirm={(date) => {
                 setSelectedDate(date);
