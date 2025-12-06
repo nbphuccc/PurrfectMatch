@@ -118,7 +118,6 @@ export default function PlaydateScreen() {
     date: "",
     petBreed: "",
     city: "",
-    contactInfo: "",
     petImage: "",
     description: "",
     address: "",
@@ -569,7 +568,6 @@ export default function PlaydateScreen() {
         date: "",
         petBreed: "",
         city: "",
-        contactInfo: "",
         petImage: "",
         description: "",
         address: "",
@@ -1072,7 +1070,7 @@ export default function PlaydateScreen() {
           >
             <Text style={styles.formTitle}>Create a Playdate</Text>
 
-            <Text style={styles.label}>Time (required):</Text>
+            <Text style={styles.label}>Time:</Text>
             <TouchableOpacity
               onPress={() => setShowTimePicker(prev => !prev)}
               style={[styles.input, errors.time && styles.errorInput, { justifyContent: "center" }]}
@@ -1104,7 +1102,7 @@ export default function PlaydateScreen() {
               />
             )}
 
-            <Text style={styles.label}>Date (required):</Text>
+            <Text style={styles.label}>Date:</Text>
 
             <TouchableOpacity
               onPress={() => setShowDatePicker(prev => !prev)}  
@@ -1138,20 +1136,12 @@ export default function PlaydateScreen() {
               />
             )}
 
-            <Text style={styles.label}>Pet Breed (required):</Text>
+            <Text style={styles.label}>Pet Breed:</Text>
             <TextInput
               style={[styles.input, errors.petBreed && styles.errorInput]}
               placeholder="e.g. Golden Retriever"
               value={formData.petBreed}
               onChangeText={(text) => handleInputChange("petBreed", text)}
-            />
-
-            <Text style={styles.label}>Contact Info (optional):</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your phone or email"
-              value={formData.contactInfo}
-              onChangeText={(text) => handleInputChange("contactInfo", text)}
             />
 
             <Text style={styles.label}>Pet Photo (optional):</Text>
@@ -1176,7 +1166,7 @@ export default function PlaydateScreen() {
               onChangeText={(text) => handleInputChange("description", text)}
               multiline
             />
-                      <Text style={styles.label}>Playdate Location (required):</Text>
+                      <Text style={styles.label}>Playdate Location:</Text>
                       <TextInput
               style={styles.input}
               placeholder="Type park name or address"
