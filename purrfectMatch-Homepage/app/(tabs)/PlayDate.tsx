@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase, toggleJoinFirebase, getJoinStatusFirebase } from "../../api/playdates";
 import MapView, { Marker, Circle } from 'react-native-maps';
@@ -715,9 +716,15 @@ export default function PlaydateScreen() {
             </Text>
 
             {loading && (
-              <Text style={{ textAlign: "center", marginTop: 8 }}>
-                Loading feed...
-              </Text>
+              <View style={styles.fullScreenLoading}>
+                <Image
+                  source={{
+                    uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+                  }}
+                  style={styles.loadingImage}
+                />
+                <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+              </View>
             )}
             {loadError && (
               <Text
@@ -1297,32 +1304,52 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   buttonText: { fontWeight: "bold", color: "#000" },
-  joinButton: {
-  paddingHorizontal: 10,
-  paddingVertical: 5,
-  borderRadius: 6,
-  alignSelf: "center",
-},
+    joinButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    alignSelf: "center",
+  },
 
-joinButtonText: {
-  color: "white",
-  fontWeight: "600",
-  fontSize: 13,
-},
+  joinButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 
   participantsBadge: {
-  backgroundColor: "#FFE8D6",   // soft warm orange background
-  paddingHorizontal: 10,
-  paddingVertical: 3,
-  borderRadius: 12,
-  marginBottom: 6,
-  alignSelf: "center",
-},
+    backgroundColor: "#FFE8D6",   // soft warm orange background
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginBottom: 6,
+    alignSelf: "center",
+  },
 
-participantsBadgeText: {
-  color: "#F97316",             // vibrant orange text
-  fontSize: 12,
-  fontWeight: "600",
-},
+  participantsBadgeText: {
+    color: "#F97316",             // vibrant orange text
+    fontSize: 12,
+    fontWeight: "600",
+  },
 
+  fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
 });

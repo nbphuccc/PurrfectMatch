@@ -13,6 +13,7 @@ import {
   Modal,
   Alert,
   TouchableWithoutFeedback,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,32 +49,11 @@ export function timeAgo(date: Date) {
 export default function PlaydatePost() {
   const params = useLocalSearchParams();
 
-  //const getParamString = (value: string | string[] | undefined): string | undefined =>
-    //Array.isArray(value) ? value[0] : typeof value === "string" ? value : undefined;
-
   const postId = params.id as string | undefined;
-  /*
-  const postId = getParamString(params.id) || "";
-  const authorId = getParamString(params.authorId) || "";
-  const title = getParamString(params.title) || "Playdate";
-  const location = getParamString(params.location) || "Location: TBD";
-  const date = getParamString(params.date) || "Date: TBD";
-  const address = getParamString(params.address);
-  const city = getParamString(params.city);
-  const state = getParamString(params.state);
-  const zip = getParamString(params.zip);
-  const username = getParamString(params.user) || "User";
-  const time = getParamString(params.time) || "Just now";
-  const description =
-    getParamString(params.description) ||
-    "No description provided for this playdate.";
-
-  const rawImage = getParamString(params.image);
-  const image = rawImage || undefined;
-  */
 
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<any[]>([]);
+  const [loadingPost, setLoadingPost] = useState<boolean>(true);
   const [loadingComments, setLoadingComments] = useState(true);
   const [loadingMap, setLoadingMap] = useState(false);
   const [postAvatarUrl, setPostAvatarUrl] = useState<string | null>(null);
@@ -108,40 +88,51 @@ export default function PlaydatePost() {
   }, [postId]);
 
   useEffect(() => {
-    loadPost();
-  }, [loadPost]);
+    const fetchPostAndAvatar = async () => {
+      setLoadingPost(true); // start loading
 
-  useEffect(() => {
-    const fetchAvatar = async () => {
       try {
-        const authorProfile = await getUserProfileFirebase(post?.authorId || "");
+        // Load the post
+        await loadPost();
+
+        if (!post?.authorId) {
+          setLoadingPost(false);
+          return;
+        }
+
+        // Get author's profile
+        const authorProfile = await getUserProfileFirebase(post.authorId);
         setPostAvatarUrl(authorProfile?.avatar || null);
-        if (authorProfile?.publicEmail){
+        if (authorProfile?.publicEmail) {
           setAuthorEmail(authorProfile.email);
         }
+
         const currentUser = getCurrentUser();
-        if (!currentUser) {
+        if (!currentUser || !postId) {
+          setLoadingPost(false);
           return;
         }
-        if (!postId){
-          return;
-        }
+
+        // Get current user's profile
         const profile = await getUserProfileFirebase(currentUser.uid);
         setAvatarUrl(profile?.avatar || null);
-        const liked = currentUser ? await getLikeStatusFirebase(postId, currentUser.uid) : false;
-        const joined = currentUser ? await getJoinStatusFirebase(postId, currentUser.uid) : false;
+
+        // Fetch like/join status
+        const liked = await getLikeStatusFirebase(postId, currentUser.uid);
+        const joined = await getJoinStatusFirebase(postId, currentUser.uid);
         setLiked(liked);
         setJoined(joined);
+
       } catch (err) {
-        console.error("Failed to fetch avatar:", err);
+        console.error("Failed to fetch post/avatar/status:", err);
         setPostAvatarUrl(null);
+      } finally {
+        setLoadingPost(false); // done loading
       }
     };
 
-    if (post?.authorId) {
-      fetchAvatar();
-    }
-  });
+    fetchPostAndAvatar();
+  }, [loadPost, post?.authorId, postId]);
 
   const toggleJoinPlaydate = async () => {
     const currentUser = getCurrentUser();
@@ -478,6 +469,17 @@ export default function PlaydatePost() {
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+        {loadingPost && (
+          <View style={styles.fullScreenLoading}>
+            <Image
+              source={{
+                uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+              }}
+              style={styles.loadingImage}
+            />
+            <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+          </View>
+        )}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
@@ -623,7 +625,6 @@ export default function PlaydatePost() {
               <Text>{post?.comments ?? 0}</Text>
             </View>
           </View>
-
         </View>
 
         {/* ⭐ COMMUNITY-STYLE COMMENT BAR (FINAL VERSION) ⭐ */}
@@ -807,19 +808,22 @@ export default function PlaydatePost() {
                 <TouchableWithoutFeedback>
                   <View style={styles.participantsModalContent}>
                     <Text style={styles.participantsModalTitle}>Participants</Text>
-
                     <ScrollView style={styles.participantsModalList}>
                       {participantsList?.map((participant) => (
                         <TouchableOpacity
                           key={participant.id}
                           style={styles.participantsModalItem}
                           activeOpacity={0.7}
-                          onPress={() =>
+                          onPress={() => {
+                            if (Platform.OS === 'ios') {
+                              setParticipantsModalVisible(false);
+                            }
+
                             router.push({
-                              pathname: "/userProfile",
+                              pathname: '/userProfile',
                               params: { authorId: participant.id },
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Image
                             source={{ uri: participant.avatar || 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=' }}
@@ -831,7 +835,6 @@ export default function PlaydatePost() {
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
-
                   </View>
                 </TouchableWithoutFeedback>
               </View>
@@ -1050,5 +1053,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#000000ff",
     marginLeft: 10,
+  },
+
+  fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
   },
 });

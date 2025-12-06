@@ -358,6 +358,17 @@ export default function Profile() {
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
+      {loadingPosts && (
+        <View style={styles.fullScreenLoading}>
+          <Image
+            source={{
+              uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+            }}
+            style={styles.loadingImage}
+          />
+          <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+        </View>
+      )}
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
           <TouchableOpacity onPress={handlePickImage}>
@@ -990,81 +1001,100 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   profileInfoBox: {
-  backgroundColor: '#fff',
-  padding: 20,
-  marginHorizontal: 16,
-  marginTop: 20,
-  borderRadius: 12,
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.08,
-  shadowRadius: 6,
-  elevation: 3,
-},
+    backgroundColor: '#fff',
+    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
 
-infoRow: {
-  marginBottom: 16,
-},
+  infoRow: {
+    marginBottom: 16,
+  },
 
-infoLabel: {
-  fontSize: 16,
-  color: '#777',
-  marginBottom: 4,
-  fontWeight: '500',
-},
+  infoLabel: {
+    fontSize: 16,
+    color: '#777',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
 
-infoValue: {
-  fontSize: 15,
-  color: '#555',
-  lineHeight: 20,
-},
+  infoValue: {
+    fontSize: 15,
+    color: '#555',
+    lineHeight: 20,
+  },
 
-infoDivider: {
-  height: 1,
-  backgroundColor: '#eee',
-  marginTop: 12,
-},
+  infoDivider: {
+    height: 1,
+    backgroundColor: '#eee',
+    marginTop: 12,
+  },
 
-editButton: {
-  alignSelf: "flex-end",
-  backgroundColor: "#007AFF",
-  paddingHorizontal: 14,
-  paddingVertical: 6,
-  borderRadius: 8,
-  marginBottom: 12,
-},
-editButtonText: {
-  color: "#fff",
-  fontWeight: "600",
-},
+  editButton: {
+    alignSelf: "flex-end",
+    backgroundColor: "#007AFF",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  editButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 
-inputField: {
-  borderWidth: 1,
-  borderColor: "#ccc",
-  borderRadius: 8,
-  paddingHorizontal: 10,
-  paddingVertical: 8,
-  fontSize: 16,
-  backgroundColor: "#fafafa",
-  color: "#333",
-  marginTop: 4,
-},
+  inputField: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: "#fafafa",
+    color: "#333",
+    marginTop: 4,
+  },
 
-postMenuButton: {
-  position: 'absolute',
-  right: 8,
-  zIndex: 10,
-  padding: 4,
-},
+  postMenuButton: {
+    position: 'absolute',
+    right: 8,
+    zIndex: 10,
+    padding: 4,
+  },
 
-postMenuText: {
-  fontSize: 18,
-  fontWeight: '600',
-},
+  postMenuText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
 
-modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
-modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
-modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
-modalOptionText: { fontSize: 16 },
-
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: "center" },
+  modalContent: { backgroundColor: "#fff", borderRadius: 8, width: 200 },
+  modalOption: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  modalOptionText: { fontSize: 16 },
+  fullScreenLoading: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999, // ensure it sits on top
+  },
+  loadingImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
+  },
 });
