@@ -1,7 +1,7 @@
 // CommunityScreen component for PurrfectMatch app
 
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, KeyboardAvoidingView, Platform, ActivityIndicator, } from 'react-native';
@@ -10,9 +10,6 @@ import CreateCommunityPost from '../CreateCommunityPost';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { app } from '../../config/firebase';
 import { getCurrentUser, getUserProfileFirebase } from '../../api/firebaseAuth';
-
-const PET_TYPES = ['Cat', 'Dog', 'Rabbit', 'Small Pet', 'Other'];
-const CATEGORIES = ['Resource', 'Care', 'Other'];
 
 type Post = {
   id: number;
@@ -110,7 +107,7 @@ export default function CommunityScreen() {
   }, []);
   */
 
-  const loadPosts = React.useCallback(async () => {
+  const loadPosts = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -152,12 +149,12 @@ export default function CommunityScreen() {
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadPosts();
   }, [loadPosts]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       console.log('Screen focused, refreshing posts...');
       loadPosts();
     }, [loadPosts])
@@ -272,7 +269,7 @@ export default function CommunityScreen() {
       await toggleLikeFirebase(firebaseId, currentUser.uid);
       
       // Reload to sync with Firebase
-      await loadPosts();
+      //await loadPosts();
     } catch (error) {
       console.error('Error toggling like:', error);
       Alert.alert('Error', 'Failed to update like. Please try again.');
@@ -289,6 +286,31 @@ export default function CommunityScreen() {
     });
   };
 
+  const handleFabPress = () => {
+    const user = getCurrentUser();
+
+    if (!user) {
+      Alert.alert("Not Logged In", "Please log in to post.");
+      return;
+    }
+
+    setShowForm(true);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
     style={{ flex: 1 }}
@@ -300,17 +322,6 @@ export default function CommunityScreen() {
       {!showForm && (
         <>
           <Text style={styles.header}>Share, Ask, and Help Other Pet Owners!</Text>
-          {loading && (
-            <View style={styles.fullScreenLoading}>
-              <Image
-                source={{
-                  uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-                }}
-                style={styles.loadingImage}
-              />
-              <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-            </View>
-          )}
           {loadError && (
             <Text style={{ textAlign: 'center', marginTop: 8, color: 'red' }}>{loadError}</Text>
           )}
@@ -407,7 +418,7 @@ export default function CommunityScreen() {
             ))}
           </ScrollView>
 
-          <TouchableOpacity style={styles.fab} onPress={() => setShowForm(true)}>
+          <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
             <Ionicons name="add" size={32} color="white" />
           </TouchableOpacity>
         </>

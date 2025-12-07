@@ -17,7 +17,7 @@ export default function UserProfile() {
   const [profile, setProfile] = useState<ProfileFirebase | null>(null);
   const [userPosts, setUserPosts] = useState<(CommunityPostFirebase & { id: string; type: 'community' })[]>([]);
   const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
-  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   
   const router = useRouter();
 
@@ -68,19 +68,22 @@ export default function UserProfile() {
     }, [authorId, loadUserPosts])
   );
 
+  if (loadingPosts) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
-      {loadingPosts && (
-        <View style={styles.fullScreenLoading}>
-          <Image
-            source={{
-              uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-            }}
-            style={styles.loadingImage}
-          />
-          <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-        </View>
-      )}
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
             <Image

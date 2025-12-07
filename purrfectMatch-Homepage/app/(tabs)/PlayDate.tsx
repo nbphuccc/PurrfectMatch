@@ -22,7 +22,6 @@ import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "../../config/firebase";
 import { getCurrentUser, getUserProfileFirebase } from "../../api/firebaseAuth";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 import {timeAgo} from "../playdatePost";
@@ -422,7 +421,7 @@ export default function PlaydateScreen() {
       await toggleLikeFirebase(postId, currentUser.uid);
       
       // Reload to sync with Firebase
-      await loadPlaydates();
+      //await loadPlaydates();
     } catch (error) {
       console.error('Error toggling like:', error);
       Alert.alert('Error', 'Failed to update like. Please try again.');
@@ -460,7 +459,7 @@ export default function PlaydateScreen() {
       await toggleJoinFirebase(postId, currentUser.uid);
 
       // --- Sync from Firebase ---
-      await loadPlaydates();
+      //await loadPlaydates();
 
     } catch (error) {
       console.error("Error toggling join:", error);
@@ -653,14 +652,6 @@ export default function PlaydateScreen() {
     }
   }, []);
 
-  /*
-  React.useEffect(() => {
-    if (currentUser) {
-      loadPlaydates();
-    }
-  }, [currentUser, loadPlaydates]);
-  */
-
   useFocusEffect(
     React.useCallback(() => {
       console.log('Screen focused, refreshing playdates ...');
@@ -674,6 +665,17 @@ export default function PlaydateScreen() {
       pathname: "../userProfile",
       params: { authorId },
     });
+  };
+
+  const handleFabPress = () => {
+    const user = getCurrentUser();
+
+    if (!user) {
+      Alert.alert("Not Logged In", "Please log in to post.");
+      return;
+    }
+
+    setShowForm(true);
   };
 
   const isPin = selectedLocation
@@ -798,6 +800,20 @@ export default function PlaydateScreen() {
 
   const formattedDate = formData.date || "Select Date";
 
+  if (loading || uploadingImage) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -810,18 +826,6 @@ export default function PlaydateScreen() {
             <Text style={styles.header}>
               One Simple Post, One Fun Play Date!
             </Text>
-
-            {loading && (
-              <View style={styles.fullScreenLoading}>
-                <Image
-                  source={{
-                    uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-                  }}
-                  style={styles.loadingImage}
-                />
-                <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-              </View>
-            )}
             {loadError && (
               <Text
                 style={{
@@ -1060,7 +1064,7 @@ export default function PlaydateScreen() {
 
             <TouchableOpacity
               style={styles.fab}
-              onPress={() => setShowForm(true)}
+              onPress={handleFabPress}
             >
               <Ionicons name="add" size={32} color="white" />
             </TouchableOpacity>

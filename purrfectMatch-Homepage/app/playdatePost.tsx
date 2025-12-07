@@ -161,7 +161,7 @@ export default function PlaydatePost() {
       await toggleJoinFirebase(postId, currentUser.uid);
 
       // --- Sync from Firebase ---
-      await loadPost();
+      //await loadPost();
 
     } catch (error) {
       console.error("Error toggling join:", error);
@@ -198,7 +198,7 @@ export default function PlaydatePost() {
       await toggleLikeFirebase(postId, currentUser.uid);
 
       // --- Sync from Firebase ---
-      await loadPost();
+      //await loadPost();
 
     } catch (error) {
       console.error("Error toggling like:", error);
@@ -277,7 +277,7 @@ export default function PlaydatePost() {
 
       // --- Sync comments list ---
       await loadComments();
-      await loadPost(); // refresh accurate count from Firebase
+      //await loadPost(); // refresh accurate count from Firebase
 
     } catch (error) {
       console.error("Error posting comment:", error);
@@ -285,6 +285,7 @@ export default function PlaydatePost() {
 
       // --- Revert optimistic update ---
       await loadPost();
+      await loadComments();
     }
   };
 
@@ -556,6 +557,20 @@ export default function PlaydatePost() {
     return { label: "Completed", status: "completed" };
   }
 
+  if (loadingPost) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -563,17 +578,6 @@ export default function PlaydatePost() {
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-        {loadingPost && (
-          <View style={styles.fullScreenLoading}>
-            <Image
-              source={{
-                uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-              }}
-              style={styles.loadingImage}
-            />
-            <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-          </View>
-        )}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
