@@ -161,7 +161,7 @@ export default function PlaydatePost() {
       await toggleJoinFirebase(postId, currentUser.uid);
 
       // --- Sync from Firebase ---
-      await loadPost();
+      //await loadPost();
 
     } catch (error) {
       console.error("Error toggling join:", error);
@@ -198,7 +198,7 @@ export default function PlaydatePost() {
       await toggleLikeFirebase(postId, currentUser.uid);
 
       // --- Sync from Firebase ---
-      await loadPost();
+      //await loadPost();
 
     } catch (error) {
       console.error("Error toggling like:", error);
@@ -277,7 +277,7 @@ export default function PlaydatePost() {
 
       // --- Sync comments list ---
       await loadComments();
-      await loadPost(); // refresh accurate count from Firebase
+      //await loadPost(); // refresh accurate count from Firebase
 
     } catch (error) {
       console.error("Error posting comment:", error);
@@ -285,6 +285,7 @@ export default function PlaydatePost() {
 
       // --- Revert optimistic update ---
       await loadPost();
+      await loadComments();
     }
   };
 

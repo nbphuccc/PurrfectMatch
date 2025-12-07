@@ -269,7 +269,7 @@ export default function CommunityScreen() {
       await toggleLikeFirebase(firebaseId, currentUser.uid);
       
       // Reload to sync with Firebase
-      await loadPosts();
+      //await loadPosts();
     } catch (error) {
       console.error('Error toggling like:', error);
       Alert.alert('Error', 'Failed to update like. Please try again.');

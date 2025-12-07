@@ -421,7 +421,7 @@ export default function PlaydateScreen() {
       await toggleLikeFirebase(postId, currentUser.uid);
       
       // Reload to sync with Firebase
-      await loadPlaydates();
+      //await loadPlaydates();
     } catch (error) {
       console.error('Error toggling like:', error);
       Alert.alert('Error', 'Failed to update like. Please try again.');
@@ -459,7 +459,7 @@ export default function PlaydateScreen() {
       await toggleJoinFirebase(postId, currentUser.uid);
 
       // --- Sync from Firebase ---
-      await loadPlaydates();
+      //await loadPlaydates();
 
     } catch (error) {
       console.error("Error toggling join:", error);
