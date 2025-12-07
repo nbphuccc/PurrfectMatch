@@ -652,14 +652,6 @@ export default function PlaydateScreen() {
     }
   }, []);
 
-  /*
-  React.useEffect(() => {
-    if (currentUser) {
-      loadPlaydates();
-    }
-  }, [currentUser, loadPlaydates]);
-  */
-
   useFocusEffect(
     React.useCallback(() => {
       console.log('Screen focused, refreshing playdates ...');
@@ -673,6 +665,17 @@ export default function PlaydateScreen() {
       pathname: "../userProfile",
       params: { authorId },
     });
+  };
+
+  const handleFabPress = () => {
+    const user = getCurrentUser();
+
+    if (!user) {
+      Alert.alert("Not Logged In", "Please log in to post.");
+      return;
+    }
+
+    setShowForm(true);
   };
 
   const isPin = selectedLocation
@@ -1059,7 +1062,7 @@ export default function PlaydateScreen() {
 
             <TouchableOpacity
               style={styles.fab}
-              onPress={() => setShowForm(true)}
+              onPress={handleFabPress}
             >
               <Ionicons name="add" size={32} color="white" />
             </TouchableOpacity>

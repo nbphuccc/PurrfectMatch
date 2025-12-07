@@ -1,7 +1,7 @@
 // CommunityScreen component for PurrfectMatch app
 
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, KeyboardAvoidingView, Platform, ActivityIndicator, } from 'react-native';
@@ -107,7 +107,7 @@ export default function CommunityScreen() {
   }, []);
   */
 
-  const loadPosts = React.useCallback(async () => {
+  const loadPosts = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -149,12 +149,12 @@ export default function CommunityScreen() {
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadPosts();
   }, [loadPosts]);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       console.log('Screen focused, refreshing posts...');
       loadPosts();
     }, [loadPosts])
@@ -286,6 +286,17 @@ export default function CommunityScreen() {
     });
   };
 
+  const handleFabPress = () => {
+    const user = getCurrentUser();
+
+    if (!user) {
+      Alert.alert("Not Logged In", "Please log in to post.");
+      return;
+    }
+
+    setShowForm(true);
+  };
+
   return (
     <KeyboardAvoidingView
     style={{ flex: 1 }}
@@ -404,7 +415,7 @@ export default function CommunityScreen() {
             ))}
           </ScrollView>
 
-          <TouchableOpacity style={styles.fab} onPress={() => setShowForm(true)}>
+          <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
             <Ionicons name="add" size={32} color="white" />
           </TouchableOpacity>
         </>
