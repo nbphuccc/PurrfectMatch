@@ -1,20 +1,23 @@
 # 🐾 Purrfect Match
 
-Purrfect Match is a lightweight mobile app designed to connect pet owners through a community-driven playdate and resource board. Unlike adoption platforms such as Petfinder, our app focuses on building local connections between pet owners. Our goal is to create a fun, mobile-first way for owners to discover events, share knowledge, and connect with others in their area.
+Purrfect Match is a lightweight mobile app designed to connect pet owners through a community board and playdate scheduling. Unlike adoption platforms such as Petfinder, our app focuses on building local connections between pet owners. Our goal is to create a fun, mobile-first way for owners to discover events, share knowledge, and connect with others in their area.
 
-**Playdates Tab:** Dog-focused posts to find nearby play buddies.
+**Playdates Tab:** A dog-focused scheduling system with location-based filtering and geocoding
 
-**Community Tab:** A shared board for cats, rabbits, and small pets — for tips, resources, and pet sitting arrangements.
+**Community Tab:** A bulletin board for all pet types (cats, rabbits, small pets) to share tips, resources and questions.
+
+**Profile System:** User authentication and personalized content management
 
 
 ## What are Purrfect Match features?
 
-- Browse playdates board based on location (city input)
-- Create playdate posts (time, place, pet info, contact)
-- Playdates Tab: Dog playdate meetups
-- Community Tab: Posts for all pets (cats, rabbits, small pets) — pet sitting, tips, and resources
-- Post details with photos, description, location, and contact email/URL
-- Keyword search on community board
+- Playdates: Browse and create dog meetups, filter by city/state, see a live time-remaining label (e.g., In 5 days, Tomorrow, In 17h), and view Completed events.
+- Join Playdates: Tap Join/Joined and see how many people have joined in real time, and view joined playdates in your profile.
+- Community Board: Share posts for all pet types (dogs, cats, rabbits, small pets), including tips, questions, and resources.
+- Post Details: Add images, pet categories, descriptions, event location, contact info, and view an interactive map.
+- Engagement Tools: Real-time comments and persistent likes on community posts.
+- Search & Filters: Keyword search in Community and location-based filtering in Playdates.
+- User Profiles: Edit profile info, change avatar, view stats, and manage your own community posts and joined playdates.
 
 ## Prerequisites
 Before installing Purrfect Match (frontend), make sure you have the following.
