@@ -800,6 +800,20 @@ export default function PlaydateScreen() {
 
   const formattedDate = formData.date || "Select Date";
 
+  if (loading || uploadingImage) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -812,18 +826,6 @@ export default function PlaydateScreen() {
             <Text style={styles.header}>
               One Simple Post, One Fun Play Date!
             </Text>
-
-            {loading || uploadingImage && (
-              <View style={styles.fullScreenLoading}>
-                <Image
-                  source={{
-                    uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-                  }}
-                  style={styles.loadingImage}
-                />
-                <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-              </View>
-            )}
             {loadError && (
               <Text
                 style={{

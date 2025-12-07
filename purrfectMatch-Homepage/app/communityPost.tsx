@@ -74,15 +74,16 @@ export default function PostDetail() {
   }, [id]);
 
   useEffect(() => {
-    loadPost();
-  }, [loadPost]);
-
-  useEffect(() => {
     const fetchAvatarAndStatus = async () => {
       setLoadingPost(true);
       try {
-        // Only inside the function now
-        if (!post?.authorId) return;
+         // Load the post
+        await loadPost();
+
+        if (!post?.authorId) {
+          setLoadingPost(false);
+          return;
+        }
 
         const authorProfile = await getUserProfileFirebase(post.authorId);
         setPostAvatarUrl(authorProfile?.avatar || null);
@@ -105,7 +106,7 @@ export default function PostDetail() {
     };
 
     fetchAvatarAndStatus();
-  }, [post?.authorId, id]);
+  }, [loadPost, post?.authorId, id]);
 
   const toggleLike = async () => {
     const currentUser = getCurrentUser();
@@ -321,6 +322,20 @@ export default function PostDetail() {
     }
   };
 
+  if (loadingPost) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
     style={{ flex: 1 }}
@@ -329,17 +344,6 @@ export default function PostDetail() {
     >
       <View style={styles.outer_container}>
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]} keyboardShouldPersistTaps="handled">
-          {loadingPost && (
-            <View style={styles.fullScreenLoading}>
-              <Image
-                source={{
-                  uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-                }}
-                style={styles.loadingImage}
-              />
-              <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-            </View>
-          )}
           <View style={styles.card}>
           
             <View style={styles.cardHeader}>

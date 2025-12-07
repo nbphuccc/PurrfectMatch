@@ -19,7 +19,7 @@ export default function Profile() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userPosts, setUserPosts] = useState<(CommunityPostFirebase & { id: string; type: 'community' })[]>([]);
   const [userPlaydates, setUserPlaydates] = useState<PlaydatePostFirebase[]>([]);
-  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   const [profile, setProfile] = useState<ProfileFirebase | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
   const [editedName, setEditedName] = useState<string>("");
@@ -30,6 +30,7 @@ export default function Profile() {
   const [isEditingPost, setIsEditingPost] = useState<boolean>(false);
   const [editedPostDescription, setEditedPostDescription] = useState<string | null>(null);
   const [joinedPlaydates, setJoinedPlaydates] = useState<PlaydatePostFirebase[]>([]);
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
   const router = useRouter();
 
@@ -63,44 +64,57 @@ export default function Profile() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setIsLoggedIn(true);
-        console.log('User logged in:', user.email);
-        const currProfile = await getUserProfileFirebase(user.uid);
+      setLoadingAuth(true);
 
-        if (!currProfile) {
-          // Create missing profile
-          const result = await setUserProfileFirebase(user.uid, {
-            email: user.email!,
-            username: user.displayName || "User",
-            name: "",
-            bio: "",
-            avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-            publicEmail: false,
-          });
+      try {
+        if (user) {
+          setIsLoggedIn(true);
+          console.log('User logged in:', user.email);
 
-          if (!result.success) {
-            console.error("Failed to create user profile. Account exists without profile?");
+          const currProfile = await getUserProfileFirebase(user.uid);
+
+          if (!currProfile) {
+            // Create missing profile
+            const result = await setUserProfileFirebase(user.uid, {
+              email: user.email!,
+              username: user.displayName || "User",
+              name: "",
+              bio: "",
+              avatar: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+              publicEmail: false,
+            });
+
+            if (!result.success) {
+              console.error("Failed to create user profile. Account exists without profile?");
+            }
           }
+
+          // Fetch the newly created profile
+          const finalProfile = await getUserProfileFirebase(user.uid);
+          setProfile(finalProfile);
+          setEditedName(finalProfile?.name || "");
+          setEditedBio(finalProfile?.bio || "");
+          setEmailIsPublic(finalProfile?.publicEmail || false);
+
+          await loadUserPosts();
+        } else {
+          // User logged out
+          setIsLoggedIn(false);
+          setUserPosts([]);
+          setUserPlaydates([]);
+          setProfile(null);
+          setEditedName("");
+          setEditedBio("");
+          setEmailIsPublic(false);
+          console.log('User logged out');
         }
-        // Fetch the newly created profile
-        const finalProfile = await getUserProfileFirebase(user.uid);
-        setProfile(finalProfile);
-        setEditedName(finalProfile?.name || "");
-        setEditedBio(finalProfile?.bio || "");
-        setEmailIsPublic(finalProfile?.publicEmail || false);
-        loadUserPosts();
-      } else {
-        setIsLoggedIn(false);
-        setUserPosts([]);
-        setUserPlaydates([]);
-        setProfile(null);
-        setEditedName("");
-        setEditedBio("");
-        setEmailIsPublic(false);
-        console.log('User logged out');
+      } catch (error) {
+        console.error("Error in auth state change:", error);
+      } finally {
+        setLoadingAuth(false); // ✅ always runs
       }
     });
+
     return () => unsubscribe();
   }, [loadUserPosts]);
 
@@ -455,19 +469,22 @@ export default function Profile() {
     );
   }
 
+  if (loadingPosts || loadingAuth) {
+    return (
+      <View style={styles.fullScreenLoading}>
+        <Image
+          source={{
+            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
+          }}
+          style={styles.loadingImage}
+        />
+        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="always">
-      {loadingPosts && (
-        <View style={styles.fullScreenLoading}>
-          <Image
-            source={{
-              uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-            }}
-            style={styles.loadingImage}
-          />
-          <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-        </View>
-      )}
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
           <TouchableOpacity onPress={handlePickImage}>
