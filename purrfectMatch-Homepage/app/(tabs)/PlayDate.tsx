@@ -800,20 +800,6 @@ export default function PlaydateScreen() {
 
   const formattedDate = formData.date || "Select Date";
 
-  if (loading || uploadingImage) {
-    return (
-      <View style={styles.fullScreenLoading}>
-        <Image
-          source={{
-            uri: 'https://media.istockphoto.com/id/1444657782/vector/dog-and-cat-profile-logo-design.jpg?s=612x612&w=0&k=20&c=86ln0k0egBt3EIaf2jnubn96BtMu6sXJEp4AvaP0FJ0=',
-          }}
-          style={styles.loadingImage}
-        />
-        <ActivityIndicator size="large" color="#3498db" style={styles.loadingSpinner} />
-      </View>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -1445,26 +1431,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  fullScreenLoading: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#fff', // or semi-transparent like 'rgba(255,255,255,0.9)'
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 9999, // ensure it sits on top
-  },
-  loadingImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 20,
-  },
-  loadingSpinner: {
-    marginTop: 10,
-  },
   whenAt: {
   fontSize: 14,
   color: "#666",
