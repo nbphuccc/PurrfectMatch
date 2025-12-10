@@ -39,6 +39,8 @@ export type DisplayComment = CommentFirebase & {
   avatar: string, yours: boolean;
 };
 
+
+
 export default function PostDetail() {
   const params = useLocalSearchParams();
   const [comment, setComment] = useState('');
@@ -77,7 +79,7 @@ export default function PostDetail() {
     const fetchAvatarAndStatus = async () => {
       setLoadingPost(true);
       try {
-         // Load the post
+        // Load the post
         await loadPost();
 
         if (!post?.authorId) {
@@ -204,21 +206,21 @@ export default function PostDetail() {
     if (!id || !comment.trim()) return;
 
     if (!currentUser) {
-    Alert.alert('Not Logged In', 'Please log in to comment.');
-    return;
+      Alert.alert('Not Logged In', 'Please log in to comment.');
+      return;
     }
 
     try {
       setSubmitting(true);
       // --- Optimistic Update (increase local comment count immediately) ---
-      setPost(prev => {
-        if (!prev) return prev;
+      // setPost(prev => {
+      //   if (!prev) return prev;
 
-        return {
-          ...prev,
-          comments: (prev.comments || 0) + 1,
-        };
-      });
+      //   return {
+      //     ...prev,
+      //     comments: (prev.comments || 0) + 1,
+      //   };
+      // });
 
       // --- Send to Firebase ---
       await addCommentFirebase({
@@ -233,18 +235,20 @@ export default function PostDetail() {
 
       // --- Sync comments list ---
       await loadComments();
-      //await loadPost(); // refresh accurate count from Firebase
+      await loadPost(); // refresh accurate count from Firebase
 
     } catch (error) {
       console.error("Error posting comment:", error);
       Alert.alert("Error", "Failed to post comment. Please try again.");
 
       // --- Revert optimistic update ---
-      await loadPost();
+      //await loadPost();
     } finally {
       setSubmitting(false);
     }
   };
+
+ // const [isDeleting, setIsDeleting] = useState(false);
 
   const handleMenuOption = async (option: "Edit" | "Delete") => {
     if (!id) {
@@ -259,15 +263,20 @@ export default function PostDetail() {
           return;
         }
 
-        // --- Optimistic Update (decrease comment count immediately) ---
-        setPost(prev => {
-          if (!prev) return prev;
+        //if (isDeleting) return;        // prevents second tap
+       // setIsDeleting(true);
 
-          return {
-            ...prev,
-            comments: Math.max(0, (prev.comments || 0) - 1),
-          };
-        });
+        setMenuVisible(false);
+
+        // --- Optimistic Update (decrease comment count immediately) ---
+        // setPost(prev => {
+        //   if (!prev) return prev;
+
+        //   return {
+        //     ...prev,
+        //     comments: Math.max(0, (prev.comments || 0) - 1),
+        //   };
+        // });
 
         // --- Firebase delete ---
         const response = await deleteCommunityCommentFirebase(selectedComment, id);
@@ -276,6 +285,7 @@ export default function PostDetail() {
           // Refresh the comments list from Firebase
           await loadComments();
           await loadPost(); // ensure accurate count sync
+
           Alert.alert("Success", "Comment deleted successfully.");
         } else {
           Alert.alert("Error", "Failed to delete comment.");
@@ -308,7 +318,7 @@ export default function PostDetail() {
         return;
       }
 
-      const response = await editCommunityCommentFirebase(selectedComment,editedContent);
+      const response = await editCommunityCommentFirebase(selectedComment, editedContent);
 
       if (response.success) {
         loadComments();
@@ -338,14 +348,14 @@ export default function PostDetail() {
 
   return (
     <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0} // tweak if header height differs
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0} // tweak if header height differs
     >
       <View style={styles.outer_container}>
         <ScrollView contentContainerStyle={[styles.container, { paddingBottom: 40 }]} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-          
+
             <View style={styles.cardHeader}>
               {/* Avatar */}
               <TouchableOpacity onPress={() => router.push({ pathname: "/userProfile", params: { authorId: post?.authorId } })}>
@@ -386,24 +396,24 @@ export default function PostDetail() {
             </Text>
             {post?.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.image} /> : null}
 
-              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 14 }}>
-                {/* Like */}
-                <TouchableOpacity
-                  onPress={() => toggleLike()}
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4}}
-                >
-                  <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"}/>
-                  <Text>{post?.likes}</Text>
-                </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 14 }}>
+              {/* Like */}
+              <TouchableOpacity
+                onPress={() => toggleLike()}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+              >
+                <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"} />
+                <Text>{post?.likes}</Text>
+              </TouchableOpacity>
 
-                {/* Comment Count */}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4}}>
-                  <Ionicons name="chatbubble-outline" size={20} color="#444"/>
-                  <Text>{post?.comments ?? 0}</Text>
-                </View>
+              {/* Comment Count */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="chatbubble-outline" size={20} color="#444" />
+                <Text>{post?.comments ?? 0}</Text>
               </View>
+            </View>
           </View>
-          
+
           <View style={{ marginTop: 30 }}>
             <View style={styles.commentInputRow}>
               <Image
@@ -458,7 +468,7 @@ export default function PostDetail() {
                         <Text style={{ color: '#666', fontSize: 12 }}>
                           {formatTimeValue(c.createdAt.toISOString())}
                         </Text>
-                        
+
                       </View>
                       {/* Editing View */}
                       {editing && selectedComment === c.id ? (
@@ -526,7 +536,7 @@ export default function PostDetail() {
               <Modal
                 visible={menuVisible}
                 transparent
-                onRequestClose = {() => setMenuVisible(false)}
+                onRequestClose={() => setMenuVisible(false)}
                 animationType="slide"
               >
                 <TouchableOpacity style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
@@ -534,7 +544,7 @@ export default function PostDetail() {
                     {["Edit", "Delete"].map((option) => (
                       <TouchableOpacity
                         key={option}
-                        onPress={() => handleMenuOption(option as "Edit" | "Delete", )}
+                        onPress={() => handleMenuOption(option as "Edit" | "Delete",)}
                         style={styles.modalOption}
                       >
                         <Text style={styles.modalOptionText}>{option}</Text>
@@ -594,7 +604,7 @@ export default function PostDetail() {
           </View>
         </ScrollView>
       </View>
-      </KeyboardAvoidingView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -603,14 +613,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignContent: "center"
   },
-  container: { 
-    padding: 16, 
-    backgroundColor: '#fff', 
-    minHeight: '100%' 
+  container: {
+    padding: 16,
+    backgroundColor: '#fff',
+    minHeight: '100%'
   },
-  user: { 
-    fontSize: 20, 
-    fontWeight: '700' 
+  user: {
+    fontSize: 20,
+    fontWeight: '700'
   },
 
   card: {
@@ -626,28 +636,28 @@ const styles = StyleSheet.create({
   },
 
   cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  profilePic: { width: 50, height: 50, borderRadius: 25},
+  profilePic: { width: 50, height: 50, borderRadius: 25 },
 
-  time: { 
-    color: '#666', 
-    marginTop: 4 
+  time: {
+    color: '#666',
+    marginTop: 4
   },
-  meta: { 
-    color: '#444', 
-    marginTop: 8 
+  meta: {
+    color: '#444',
+    marginTop: 8
   },
-  image: { 
-    width: '100%', 
-    height: 300, 
-    borderRadius: 8, 
-    marginTop: 12, 
+  image: {
+    width: '100%',
+    height: 300,
+    borderRadius: 8,
+    marginTop: 12,
     resizeMode: 'contain',
-    backgroundColor: '#f0f0f0', 
+    backgroundColor: '#f0f0f0',
   },
-  description: { 
-    marginTop: 12, 
-    fontSize: 16, 
-    color: '#222' 
+  description: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#222'
   },
   input: {
     borderWidth: 1,
