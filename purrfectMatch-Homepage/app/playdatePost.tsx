@@ -255,14 +255,14 @@ export default function PlaydatePost() {
 
     try {
       // --- Optimistic Update (increase local comment count immediately) ---
-      setPost(prev => {
-        if (!prev) return prev;
+      // setPost(prev => {
+      //   if (!prev) return prev;
 
-        return {
-          ...prev,
-          comments: (prev.comments || 0) + 1,
-        };
-      });
+      //   return {
+      //     ...prev,
+      //     comments: (prev.comments || 0) + 1,
+      //   };
+      // });
 
       // --- Send to Firebase ---
       await addPlaydateCommentFirebase({
@@ -277,15 +277,15 @@ export default function PlaydatePost() {
 
       // --- Sync comments list ---
       await loadComments();
-      //await loadPost(); // refresh accurate count from Firebase
+      await loadPost(); // refresh accurate count from Firebase
 
     } catch (error) {
       console.error("Error posting comment:", error);
       Alert.alert("Error", "Failed to post comment. Please try again.");
 
       // --- Revert optimistic update ---
-      await loadPost();
-      await loadComments();
+      // await loadPost();
+      // await loadComments();
     }
   };
 
@@ -303,14 +303,14 @@ export default function PlaydatePost() {
         }
 
         // --- Optimistic Update (decrease comment count immediately) ---
-        setPost(prev => {
-          if (!prev) return prev;
+        // setPost(prev => {
+        //   if (!prev) return prev;
 
-          return {
-            ...prev,
-            comments: Math.max(0, (prev.comments || 0) - 1),
-          };
-        });
+        //   return {
+        //     ...prev,
+        //     comments: Math.max(0, (prev.comments || 0) - 1),
+        //   };
+        // });
 
         // --- Firebase delete ---
         const response = await deletePlaydateCommentFirebase(selectedComment, postId);
