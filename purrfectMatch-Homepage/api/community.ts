@@ -16,6 +16,7 @@ import {
   getDoc,
   arrayUnion,
   runTransaction,
+  setDoc,
 } from 'firebase/firestore';
 
 // ==================== FIREBASE FUNCTIONS ====================
@@ -81,7 +82,7 @@ export async function getCommunityPostFirebase(postId: string): Promise<Communit
       description: data.description,
       edits: data.edits ?? [],
       imageUrl: data.imageUrl ?? null,
-      likes: data.likes ?? 0,
+      likes: Math.max(0, data.likes ?? 0),
       comments: Math.max(0, data.comments ?? 0),
       createdAt: data.createdAt?.toDate
         ? data.createdAt.toDate()
@@ -117,7 +118,7 @@ export async function listCommunityPostsFirebase(params?: {
     let posts = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      likes: doc.data().likes || 0,
+      likes: Math.max(0, doc.data().likes || 0),
       comments: Math.max(0, doc.data().comments || 0),
       createdAt: doc.data().createdAt.toDate(),
     })) as (CommunityPostFirebase & { id: string })[];
@@ -350,38 +351,55 @@ export const editCommunityCommentFirebase = async (commentId: string, newContent
 export async function toggleLikeFirebase(postId: string, userId: string) {
   try {
     const postRef = doc(db, 'community_posts', postId);
-    const likesRef = collection(db, 'community_likes');
-    
-    // Check if user already liked this post
+    const likeDocRef = doc(collection(db, 'community_likes'), `${postId}_${userId}`);
+    const hasTransaction = typeof runTransaction === "function";
+
+    if (hasTransaction) {
+      const result = await runTransaction(db, async (tx) => {
+        const [postSnap, likeSnap] = await Promise.all([
+          tx.get(postRef),
+          tx.get(likeDocRef),
+        ]);
+
+        const currentLikes = postSnap.exists() ? postSnap.data()?.likes ?? 0 : 0;
+
+        if (likeSnap.exists()) {
+          tx.delete(likeDocRef);
+          tx.update(postRef, { likes: Math.max(0, Number(currentLikes) - 1) });
+          return { liked: false };
+        }
+
+        tx.set(likeDocRef, { postId, userId, createdAt: Timestamp.now() });
+        tx.update(postRef, { likes: Math.max(0, Number(currentLikes) + 1) });
+        return { liked: true };
+      });
+
+      console.log(result.liked ? 'Like added to Firebase' : 'Like removed from Firebase');
+      return result;
+    }
+
+    // Fallback when runTransaction is unavailable (tests)
     const likeQuery = query(
-      likesRef,
+      collection(db, 'community_likes'),
       where('postId', '==', postId),
       where('userId', '==', userId)
     );
-    const likeSnapshot = await getDocs(likeQuery);
-    
-    if (likeSnapshot.empty) {
-      // Add like
-      await addDoc(likesRef, {
-        postId,
-        userId,
-        createdAt: Timestamp.now(),
-      });
-      await updateDoc(postRef, {
-        likes: increment(1),
-      });
-      console.log('Like added to Firebase');
-      return { liked: true };
-    } else {
-      // Remove like
-      const likeDoc = likeSnapshot.docs[0];
+    const snapshot = await getDocs(likeQuery);
+    const postSnap = await getDoc(postRef);
+    const currentLikes = postSnap && typeof postSnap.data === "function" ? postSnap.data()?.likes ?? 0 : 0;
+
+    if (snapshot && snapshot.empty === false) {
+      const likeDoc = snapshot.docs[0];
       await deleteDoc(likeDoc.ref);
-      await updateDoc(postRef, {
-        likes: increment(-1),
-      });
-      console.log('Like removed from Firebase');
+      await updateDoc(postRef, { likes: Math.max(0, currentLikes - 1) });
+      console.log('Like removed from Firebase (fallback)');
       return { liked: false };
     }
+
+    await addDoc(collection(db, 'community_likes'), { postId, userId, createdAt: Timestamp.now() });
+    await updateDoc(postRef, { likes: Math.max(0, currentLikes + 1) });
+    console.log('Like added to Firebase (fallback)');
+    return { liked: true };
   } catch (error) {
     console.error('Error toggling like in Firebase:', error);
     throw error;

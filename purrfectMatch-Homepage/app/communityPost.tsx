@@ -59,6 +59,7 @@ export default function PostDetail() {
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<CommunityPostFirebase | null>(null);
   const [liked, setLiked] = useState<boolean>(false);
+  const [liking, setLiking] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -112,9 +113,12 @@ export default function PostDetail() {
   }, [loadPost, post?.authorId, id]);
 
   const toggleLike = async () => {
+    if (liking) return;
+    setLiking(true);
     const currentUser = getCurrentUser();
     if (!currentUser) {
       Alert.alert("Not Logged In", "Please log in to like posts.");
+      setLiking(false);
       return;
     }
 
@@ -145,6 +149,8 @@ export default function PostDetail() {
 
       // --- Revert optimistic update ---
       await loadPost();
+    } finally {
+      setLiking(false);
     }
   };
 
@@ -411,7 +417,7 @@ export default function PostDetail() {
                 style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
               >
                 <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"} />
-                <Text>{post?.likes}</Text>
+                <Text>{Math.max(0, post?.likes ?? 0)}</Text>
               </TouchableOpacity>
 
               {/* Comment Count */}
