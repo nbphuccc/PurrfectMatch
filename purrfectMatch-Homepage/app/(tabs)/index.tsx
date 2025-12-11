@@ -49,6 +49,7 @@ export default function CommunityScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchPetType, setSearchPetType] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [likingMap, setLikingMap] = useState<Record<string, boolean>>({});
   //const [currentUser, setCurrentUser] = useState<{ id: string; username: string } | null>(null);
   const { width } = useWindowDimensions();
 
@@ -251,9 +252,13 @@ export default function CommunityScreen() {
   const router = useRouter();
 
   const toggleLike = async (postId: number, firebaseId: string) => {
+    if (likingMap[firebaseId]) return;
+    setLikingMap(prev => ({ ...prev, [firebaseId]: true }));
+
     const currentUser = getCurrentUser();
     if (!currentUser) {
       Alert.alert('Not Logged In', 'Please log in to like posts.');
+      setLikingMap(prev => ({ ...prev, [firebaseId]: false }));
       return;
     }
 
@@ -279,6 +284,8 @@ export default function CommunityScreen() {
       Alert.alert('Error', 'Failed to update like. Please try again.');
       // Revert optimistic update
       await loadPosts();
+    } finally {
+      setLikingMap(prev => ({ ...prev, [firebaseId]: false }));
     }
   };
 
