@@ -54,6 +54,7 @@ export default function PostDetail() {
   const [selectedComment, setSelectedComment] = useState<string | null>(null);
   const [editing, setEditing] = useState<boolean>(false);
   const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<CommunityPostFirebase | null>(null);
@@ -200,6 +201,7 @@ export default function PostDetail() {
   }, [loadComments]);
 
   const displayedTime = formatTimeValue(post?.createdAt.toISOString());
+  const commentCount = Math.max(commentsList.length, post?.comments ?? 0);
 
   const handlePostComment = async () => {
     const currentUser = getCurrentUser();
@@ -263,8 +265,11 @@ export default function PostDetail() {
           return;
         }
 
-        //if (isDeleting) return;        // prevents second tap
-       // setIsDeleting(true);
+        if (deletingCommentId) {
+          return;
+        }
+
+        setDeletingCommentId(selectedComment);
 
         setMenuVisible(false);
 
@@ -287,6 +292,7 @@ export default function PostDetail() {
           await loadPost(); // ensure accurate count sync
 
           Alert.alert("Success", "Comment deleted successfully.");
+          setSelectedComment(null);
         } else {
           Alert.alert("Error", "Failed to delete comment.");
           await loadPost(); // revert optimistic change
@@ -298,6 +304,8 @@ export default function PostDetail() {
 
         // --- Revert optimistic update ---
         await loadPost();
+      } finally {
+        setDeletingCommentId(null);
       }
     }
     if (option === "Edit") {
@@ -409,7 +417,7 @@ export default function PostDetail() {
               {/* Comment Count */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                 <Ionicons name="chatbubble-outline" size={20} color="#444" />
-                <Text>{post?.comments ?? 0}</Text>
+                <Text>{commentCount}</Text>
               </View>
             </View>
           </View>
@@ -520,7 +528,8 @@ export default function PostDetail() {
                     {/* "..." menu button ONLY for your comments */}
                     {c.yours && (
                       <TouchableOpacity
-                        style={styles.postMenuButton}
+                        style={[styles.postMenuButton, deletingCommentId ? { opacity: 0.5 } : null]}
+                        disabled={!!deletingCommentId}
                         onPress={() => {
                           setMenuVisible(true);
                           setSelectedComment(c.id);
@@ -545,9 +554,15 @@ export default function PostDetail() {
                       <TouchableOpacity
                         key={option}
                         onPress={() => handleMenuOption(option as "Edit" | "Delete",)}
-                        style={styles.modalOption}
+                        style={[
+                          styles.modalOption,
+                          option === "Delete" && deletingCommentId ? { opacity: 0.5 } : null
+                        ]}
+                        disabled={option === "Delete" && !!deletingCommentId}
                       >
-                        <Text style={styles.modalOptionText}>{option}</Text>
+                        <Text style={styles.modalOptionText}>
+                          {option === "Delete" && deletingCommentId ? "Deleting..." : option}
+                        </Text>
                       </TouchableOpacity>
                     ))}
                   </View>

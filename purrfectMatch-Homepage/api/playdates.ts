@@ -3,6 +3,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDocsFromServer,
   query,
   where,
   orderBy,
@@ -14,6 +15,7 @@ import {
   writeBatch,
   getDoc,
   arrayUnion,
+  runTransaction,
 } from "firebase/firestore";
 import { MapLocation } from "../app/(tabs)/PlayDate"
 import { ProfileFirebase } from "./firebaseAuth"
@@ -91,7 +93,7 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
         ? data.createdAt.toDate()
         : new Date(data.createdAt),
       likes: data.likes ?? 0,
-      comments: data.comments ?? 0,
+      comments: Math.max(0, data.comments ?? 0),
       participants: data.participants ?? 0,
       locationName: data.locationName ?? null,
       location: data.location,
@@ -107,7 +109,8 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
 export async function listPlaydatesFirebase(): Promise<PlaydatePostFirebase[]> {
   try {
     const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
+    // Force server fetch so counts reflect latest comment activity; fall back in tests
+    const snapshot = getDocsFromServer ? await getDocsFromServer(q) : await getDocs(q);
     const playdates = snapshot.docs.map((d) => {
       const data = d.data() as any;
       return {
@@ -115,7 +118,7 @@ export async function listPlaydatesFirebase(): Promise<PlaydatePostFirebase[]> {
         ...data,
         createdAt: data.createdAt?.toDate() ?? new Date(),
         likes: data.likes ?? 0,
-        comments: data.comments ?? 0,
+        comments: Math.max(0, data.comments ?? 0),
       } as PlaydatePostFirebase;
     });
     console.log(`Fetched ${playdates.length} playdates from Firebase`);
@@ -135,7 +138,8 @@ export async function listPlaydatesByCityFirebase(
       where("city", "==", city),
       orderBy("createdAt", "desc")
     );
-    const snapshot = await getDocs(q);
+    // Force server fetch so counts reflect latest comment activity; fall back in tests
+    const snapshot = getDocsFromServer ? await getDocsFromServer(q) : await getDocs(q);
     const playdates = snapshot.docs.map((d) => {
       const data = d.data() as any;
       return {
@@ -143,7 +147,7 @@ export async function listPlaydatesByCityFirebase(
         ...data,
         createdAt: data.createdAt?.toDate() ?? new Date(),
         likes: data.likes ?? 0,
-        comments: data.comments ?? 0,
+        comments: Math.max(0, data.comments ?? 0),
       } as PlaydatePostFirebase;
     });
     console.log(`Fetched ${playdates.length} playdates for city: ${city}`);
@@ -284,19 +288,54 @@ export async function getPlaydateCommentsFirebase(
 
 export async function deletePlaydateCommentFirebase(commentId: string, postId: string): Promise<{ success: boolean }> {
   try {
-    // Delete the comment
     const commentRef = doc(db, "playdate_comments", commentId);
-    await deleteDoc(commentRef);
+    const postRef = doc(db, "playdate_posts", postId);
 
-    console.log(`Comment ${commentId} deleted successfully`);
+    const doTransaction = typeof runTransaction === "function";
 
-    // Decrement the comments count on the post
-    if (postId) {
-      const postRef = doc(db, "playdate_posts", postId);
-      await updateDoc(postRef, {
-        comments: increment(-1),
+    if (doTransaction) {
+      const success = await runTransaction(db, async (transaction) => {
+        // All reads first per Firestore transaction rules
+        const commentSnap = await transaction.get(commentRef);
+        const postSnap = postId ? await transaction.get(postRef) : null;
+
+        if (!commentSnap.exists()) {
+          return false;
+        }
+
+        // Writes after reads
+        transaction.delete(commentRef);
+
+        if (postId && postSnap?.exists()) {
+          const currentCount = postSnap.data()?.comments ?? 0;
+          const nextCount = Math.max(0, Number(currentCount) - 1);
+          transaction.update(postRef, { comments: nextCount });
+        }
+
+        return true;
       });
+
+      console.log(`Comment ${commentId} deleted successfully`);
+
+      return { success };
     }
+
+    // Fallback for environments without runTransaction (tests)
+    const commentSnap = await getDoc(commentRef);
+    if (commentSnap && typeof commentSnap.exists === "function" && !commentSnap.exists()) {
+      return { success: false };
+    }
+
+    await deleteDoc(commentRef);
+    const postSnap = await getDoc(postRef);
+    const currentCount =
+      postSnap && typeof postSnap.data === "function"
+        ? postSnap.data()?.comments ?? 0
+        : 0;
+    const nextCount = Math.max(0, Number(currentCount) - 1);
+    await updateDoc(postRef, { comments: nextCount });
+
+    console.log(`Comment ${commentId} deleted successfully (fallback)`);
 
     return { success: true };
   } catch (error) {
@@ -519,7 +558,7 @@ export async function getJoinedPlaydatesFirebase(
       imageUrl: data.imageUrl,
       createdAt: data.createdAt.toDate ? data.createdAt.toDate() : data.createdAt, // Firestore Timestamp to JS Date
       likes: data.likes || 0,
-      comments: data.comments || 0,
+      comments: Math.max(0, data.comments || 0),
       participants: data.participants || 0,
       locationName: data.locationName,
       location: data.location,

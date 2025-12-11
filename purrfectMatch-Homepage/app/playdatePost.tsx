@@ -68,6 +68,7 @@ export default function PlaydatePost() {
   const [editHistoryModalVisible, setEditHistoryModalVisible] = useState<boolean>(false);
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<PlaydatePostFirebase | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [participantsList, setParticipantsList] = useState<MiniProfile[] | null>(null);
   const [participantsModalVisible, setParticipantsModalVisible] = useState<boolean>(false);
 
@@ -243,6 +244,7 @@ export default function PlaydatePost() {
   useEffect(() => {
     loadComments();
   }, [loadComments]);
+  const commentCount = Math.max(comments.length, post?.comments ?? 0);
 
   const handlePostComment = async () => {
     const currentUser = getCurrentUser();
@@ -302,6 +304,12 @@ export default function PlaydatePost() {
           return;
         }
 
+        if (deletingCommentId) {
+          return;
+        }
+
+        setDeletingCommentId(selectedComment);
+
         // --- Optimistic Update (decrease comment count immediately) ---
         // setPost(prev => {
         //   if (!prev) return prev;
@@ -319,6 +327,7 @@ export default function PlaydatePost() {
           // Refresh the comments list from Firebase
           await loadComments();
           await loadPost(); // ensure accurate count sync
+          setSelectedComment(null);
           Alert.alert("Success", "Comment deleted successfully.");
         } else {
           Alert.alert("Error", "Failed to delete comment.");
@@ -331,6 +340,8 @@ export default function PlaydatePost() {
 
         // --- Revert optimistic update ---
         await loadPost();
+      } finally {
+        setDeletingCommentId(null);
       }
     }
 
@@ -754,7 +765,7 @@ export default function PlaydatePost() {
             {/* Comment Count */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4}}>
               <Ionicons name="chatbubble-outline" size={20} color="#444"/>
-              <Text>{post?.comments ?? 0}</Text>
+              <Text>{commentCount}</Text>
             </View>
           </View>
         </View>
@@ -854,7 +865,8 @@ export default function PlaydatePost() {
                 {/* "..." menu button ONLY for your comments */}
                 {c.yours && (
                   <TouchableOpacity
-                    style={styles.postMenuButton}
+                    style={[styles.postMenuButton, deletingCommentId ? { opacity: 0.5 } : null]}
+                    disabled={!!deletingCommentId}
                     onPress={() => {
                       setMenuVisible(true);
                       setSelectedComment(c.id);
@@ -878,9 +890,15 @@ export default function PlaydatePost() {
                   <TouchableOpacity
                     key={option}
                     onPress={() => handleMenuOption(option as "Edit" | "Delete" )}
-                    style={styles.modalOption}
+                    style={[
+                      styles.modalOption,
+                      option === "Delete" && deletingCommentId ? { opacity: 0.5 } : null
+                    ]}
+                    disabled={option === "Delete" && !!deletingCommentId}
                   >
-                    <Text style={styles.modalOptionText}>{option}</Text>
+                    <Text style={styles.modalOptionText}>
+                      {option === "Delete" && deletingCommentId ? "Deleting..." : option}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
