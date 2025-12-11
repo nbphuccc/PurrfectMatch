@@ -5,7 +5,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, KeyboardAvoidingView, Platform, ActivityIndicator, } from 'react-native';
-import { createCommunityPostFirebase, listCommunityPostsFirebase, toggleLikeFirebase, getLikeStatusFirebase } from '../../api/community';
+import { createCommunityPostFirebase, listCommunityPostsFirebase, toggleLikeFirebase, getLikeStatusFirebase, getCommentsFirebase } from '../../api/community';
 import CreateCommunityPost from '../CreateCommunityPost';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { app } from '../../config/firebase';
@@ -120,6 +120,8 @@ export default function CommunityScreen() {
         const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.uid) : false;
         // Fetch author profile to get avatar
         const profile = await getUserProfileFirebase(post.authorId);
+        // Fresh comment count from collection to avoid stale cached value
+        const comments = await getCommentsFirebase(post.id);
         
         return {
           id: index + 1,
@@ -133,7 +135,7 @@ export default function CommunityScreen() {
           description: post.description,
           image: post.imageUrl,
           likes: post.likes,
-          comments: post.comments,
+          comments: Math.max(post.comments, comments.length),
           liked,
         };
       }));
