@@ -69,8 +69,10 @@ export default function PlaydatePost() {
   const [selectedEdits, setSelectedEdits] = useState<string[] | null>(null);
   const [post, setPost] = useState<PlaydatePostFirebase | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [joining, setJoining] = useState<boolean>(false);
   const [participantsList, setParticipantsList] = useState<MiniProfile[] | null>(null);
   const [participantsModalVisible, setParticipantsModalVisible] = useState<boolean>(false);
+  const [liking, setLiking] = useState<boolean>(false);
 
   const router = useRouter();
 
@@ -136,9 +138,12 @@ export default function PlaydatePost() {
   }, [loadPost, post?.authorId, postId]);
 
   const toggleJoinPlaydate = async () => {
+    if (joining) return;
+    setJoining(true);
     const currentUser = getCurrentUser();
     if (!currentUser) {
       Alert.alert("Not Logged In", "Please log in to join playdates.");
+      setJoining(false);
       return;
     }
 
@@ -170,13 +175,18 @@ export default function PlaydatePost() {
 
       // --- Revert optimistic update ---
       await loadPost();
+    } finally {
+      setJoining(false);
     }
   };
 
   const toggleLike = async () => {
+    if (liking) return;
+    setLiking(true);
     const currentUser = getCurrentUser();
     if (!currentUser) {
       Alert.alert("Not Logged In", "Please log in to like posts.");
+      setLiking(false);
       return;
     }
 
@@ -207,6 +217,8 @@ export default function PlaydatePost() {
 
       // --- Revert optimistic update ---
       await loadPost();
+    } finally {
+      setLiking(false);
     }
   };
 
@@ -622,18 +634,19 @@ export default function PlaydatePost() {
                 style={[
                   styles.joinButton,
                   { backgroundColor: joined ? "#21bb61ff" : "#3498db",
-                    opacity: getCurrentUser()?.uid === post?.authorId ? 0.5 : 1
+                    opacity: getCurrentUser()?.uid === post?.authorId || joining ? 0.5 : 1
                   }
                 ]}
                 onPress={() => {
-                  if (getCurrentUser()?.uid !== post?.authorId) {
+                  if (getCurrentUser()?.uid !== post?.authorId && !joining) {
                     toggleJoinPlaydate();
                   }
                 }}
                 activeOpacity={0.8}
+                disabled={joining || getCurrentUser()?.uid === post?.authorId}
               >
                 <Text style={styles.joinButtonText}>
-                  {joined ? "Joined" : "Join"}
+                  {joining ? "Joining..." : joined ? "Joined" : "Join"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -759,7 +772,7 @@ export default function PlaydatePost() {
               style={{ flexDirection: "row", alignItems: "center", gap: 4}}
             >
               <Ionicons name={liked ? "heart" : "heart-outline"} size={20} color={liked ? "red" : "#444"}/>
-              <Text>{post?.likes}</Text>
+              <Text>{Math.max(0, post?.likes ?? 0)}</Text>
             </TouchableOpacity>
 
             {/* Comment Count */}

@@ -16,6 +16,7 @@ import {
   getDoc,
   arrayUnion,
   runTransaction,
+  setDoc,
 } from "firebase/firestore";
 import { MapLocation } from "../app/(tabs)/PlayDate"
 import { ProfileFirebase } from "./firebaseAuth"
@@ -92,9 +93,9 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
       createdAt: data.createdAt?.toDate
         ? data.createdAt.toDate()
         : new Date(data.createdAt),
-      likes: data.likes ?? 0,
+      likes: Math.max(0, data.likes ?? 0),
       comments: Math.max(0, data.comments ?? 0),
-      participants: data.participants ?? 0,
+      participants: Math.max(0, data.participants ?? 0),
       locationName: data.locationName ?? null,
       location: data.location,
     };
@@ -117,8 +118,9 @@ export async function listPlaydatesFirebase(): Promise<PlaydatePostFirebase[]> {
         id: d.id,
         ...data,
         createdAt: data.createdAt?.toDate() ?? new Date(),
-        likes: data.likes ?? 0,
+        likes: Math.max(0, data.likes ?? 0),
         comments: Math.max(0, data.comments ?? 0),
+        participants: Math.max(0, data.participants ?? 0),
       } as PlaydatePostFirebase;
     });
     console.log(`Fetched ${playdates.length} playdates from Firebase`);
@@ -146,8 +148,9 @@ export async function listPlaydatesByCityFirebase(
         id: d.id,
         ...data,
         createdAt: data.createdAt?.toDate() ?? new Date(),
-        likes: data.likes ?? 0,
+        likes: Math.max(0, data.likes ?? 0),
         comments: Math.max(0, data.comments ?? 0),
+        participants: Math.max(0, data.participants ?? 0),
       } as PlaydatePostFirebase;
     });
     console.log(`Fetched ${playdates.length} playdates for city: ${city}`);
@@ -373,38 +376,55 @@ export const editPlaydateCommentFirebase = async (commentId: string,newContent: 
 export async function toggleLikeFirebase(postId: string, userId: string) {
   try {
     const postRef = doc(db, 'playdate_posts', postId);
-    const likesRef = collection(db, 'playdate_likes');
-    
-    // Check if user already liked this post
+    const likeDocRef = doc(collection(db, 'playdate_likes'), `${postId}_${userId}`);
+    const hasTransaction = typeof runTransaction === "function";
+
+    if (hasTransaction) {
+      const result = await runTransaction(db, async (tx) => {
+        const [postSnap, likeSnap] = await Promise.all([
+          tx.get(postRef),
+          tx.get(likeDocRef),
+        ]);
+
+        const currentLikes = postSnap.exists() ? postSnap.data()?.likes ?? 0 : 0;
+
+        if (likeSnap.exists()) {
+          tx.delete(likeDocRef);
+          tx.update(postRef, { likes: Math.max(0, Number(currentLikes) - 1) });
+          return { liked: false };
+        }
+
+        tx.set(likeDocRef, { postId, userId, createdAt: Timestamp.now() });
+        tx.update(postRef, { likes: Math.max(0, Number(currentLikes) + 1) });
+        return { liked: true };
+      });
+
+      console.log(result.liked ? 'Like added to Firebase' : 'Like removed from Firebase');
+      return result;
+    }
+
+    // Fallback when runTransaction is unavailable (tests)
     const likeQuery = query(
-      likesRef,
+      collection(db, 'playdate_likes'),
       where('postId', '==', postId),
       where('userId', '==', userId)
     );
-    const likeSnapshot = await getDocs(likeQuery);
-    
-    if (likeSnapshot.empty) {
-      // Add like
-      await addDoc(likesRef, {
-        postId,
-        userId,
-        createdAt: Timestamp.now(),
-      });
-      await updateDoc(postRef, {
-        likes: increment(1),
-      });
-      console.log('Like added to Firebase');
-      return { liked: true };
-    } else {
-      // Remove like
-      const likeDoc = likeSnapshot.docs[0];
+    const snapshot = await getDocs(likeQuery);
+    const postSnap = await getDoc(postRef);
+    const currentLikes = postSnap && typeof postSnap.data === "function" ? postSnap.data()?.likes ?? 0 : 0;
+
+    if (snapshot && snapshot.empty === false) {
+      const likeDoc = snapshot.docs[0];
       await deleteDoc(likeDoc.ref);
-      await updateDoc(postRef, {
-        likes: increment(-1),
-      });
-      console.log('Like removed from Firebase');
+      await updateDoc(postRef, { likes: Math.max(0, currentLikes - 1) });
+      console.log('Like removed from Firebase (fallback)');
       return { liked: false };
     }
+
+    await addDoc(collection(db, 'playdate_likes'), { postId, userId, createdAt: Timestamp.now() });
+    await updateDoc(postRef, { likes: Math.max(0, currentLikes + 1) });
+    console.log('Like added to Firebase (fallback)');
+    return { liked: true };
   } catch (error) {
     console.error('Error toggling like in Firebase:', error);
     throw error;
@@ -432,38 +452,50 @@ export async function getLikeStatusFirebase(postId: string, userId: string): Pro
 export async function toggleJoinFirebase(postId: string, userId: string) {
   try {
     const postRef = doc(db, "playdate_posts", postId);
-    const joinsRef = collection(db, "playdate_joins");
+    const joinDocRef = doc(collection(db, "playdate_joins"), `${postId}_${userId}`);
+    const hasTransaction = typeof runTransaction === "function";
 
-    // Check if user already joined this playdate
-    const joinQuery = query(
-      joinsRef,
-      where("postId", "==", postId),
-      where("userId", "==", userId)
-    );
-    const joinSnapshot = await getDocs(joinQuery);
+    if (hasTransaction) {
+      const result = await runTransaction(db, async (tx) => {
+        const [postSnap, joinSnap] = await Promise.all([
+          tx.get(postRef),
+          tx.get(joinDocRef),
+        ]);
 
-    if (joinSnapshot.empty) {
-      // Add join
-      await addDoc(joinsRef, {
-        postId,
-        userId,
-        createdAt: Timestamp.now(),
+        const currentParticipants = postSnap.exists() ? postSnap.data()?.participants ?? 0 : 0;
+
+        if (joinSnap.exists()) {
+          tx.delete(joinDocRef);
+          tx.update(postRef, { participants: Math.max(0, Number(currentParticipants) - 1) });
+          return { joined: false };
+        }
+
+        tx.set(joinDocRef, { postId, userId, createdAt: Timestamp.now() });
+        tx.update(postRef, { participants: Math.max(0, Number(currentParticipants) + 1) });
+        return { joined: true };
       });
-      await updateDoc(postRef, {
-        participants: increment(1),
-      });
-      console.log("Join added to Firebase");
-      return { joined: true };
-    } else {
-      // Remove join
-      const joinDoc = joinSnapshot.docs[0];
-      await deleteDoc(joinDoc.ref);
-      await updateDoc(postRef, {
-        participants: increment(-1),
-      });
-      console.log("Join removed from Firebase");
+
+      console.log(result.joined ? "Join added to Firebase" : "Join removed from Firebase");
+      return result;
+    }
+
+    // Fallback when runTransaction is unavailable (tests)
+    const joinSnap = await getDoc(joinDocRef);
+    const postSnap = await getDoc(postRef);
+    const currentParticipants =
+      postSnap && typeof postSnap.data === "function" ? postSnap.data()?.participants ?? 0 : 0;
+
+    if (joinSnap.exists()) {
+      await deleteDoc(joinDocRef);
+      await updateDoc(postRef, { participants: Math.max(0, currentParticipants - 1) });
+      console.log("Join removed from Firebase (fallback)");
       return { joined: false };
     }
+
+    await setDoc(joinDocRef, { postId, userId, createdAt: Timestamp.now() });
+    await updateDoc(postRef, { participants: Math.max(0, currentParticipants + 1) });
+    console.log("Join added to Firebase (fallback)");
+    return { joined: true };
   } catch (error) {
     console.error("Error toggling join in Firebase:", error);
     throw error;
@@ -559,7 +591,7 @@ export async function getJoinedPlaydatesFirebase(
       createdAt: data.createdAt.toDate ? data.createdAt.toDate() : data.createdAt, // Firestore Timestamp to JS Date
       likes: data.likes || 0,
       comments: Math.max(0, data.comments || 0),
-      participants: data.participants || 0,
+      participants: Math.max(0, data.participants || 0),
       locationName: data.locationName,
       location: data.location,
     });

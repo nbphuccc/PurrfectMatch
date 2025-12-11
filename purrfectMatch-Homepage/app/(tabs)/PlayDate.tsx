@@ -139,6 +139,7 @@ export default function PlaydateScreen() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [localImageUri, setLocalImageUri] = useState<string | null>(null);
+  const [likingMap, setLikingMap] = useState<Record<string, boolean>>({});
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const [locationQuery, setLocationQuery] = useState<string>('');
@@ -1017,12 +1018,18 @@ export default function PlaydateScreen() {
                   >
                     {/* Like */}
                     <TouchableOpacity
-                      onPress={() => toggleLike(post.id)}
+                      onPress={() => {
+                        if (likingMap[post.id]) return;
+                        setLikingMap(prev => ({ ...prev, [post.id]: true }));
+                        toggleLike(post.id).finally(() => setLikingMap(prev => ({ ...prev, [post.id]: false })));
+                      }}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 4,
+                        opacity: likingMap[post.id] ? 0.5 : 1,
                       }}
+                      disabled={!!likingMap[post.id]}
                     >
                       <Ionicons
                         name={post.liked ? "heart" : "heart-outline"}
