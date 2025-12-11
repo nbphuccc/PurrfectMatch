@@ -594,98 +594,109 @@ export default function Profile() {
 
       {/* Joined Playdates Section */}
       <View style={styles.postsSection}>
-        <Text style={styles.sectionTitle}>Joined Playdates ({joinedPlaydates.length})</Text>
+        {(() => {
+          // filter OUT completed playdates
+          const activeJoinedPlaydates = joinedPlaydates.filter(
+            (p) => getEventBadge(p.whenAt).status !== "completed"
+          );
 
-        {joinedPlaydates.length > 0 && (
-          <View style={styles.postTypeSection}>
-            {joinedPlaydates.map((playdate) => (
-              <TouchableOpacity
-                key={playdate.id}
-                activeOpacity={0.8}
-                onPress={() =>
-                  router.push({
-                    pathname: "/playdatePost",
-                    params: { id: playdate.id },
-                  })
-                }
-              >
-                <View style={styles.postCard}>
-                  <Text style={styles.playdateTitle}>{playdate.title}</Text>
+          return (
+            <>
+              <Text style={styles.sectionTitle}>
+                Joined Playdates ({activeJoinedPlaydates.length})
+              </Text>
 
-                  <View style={styles.playdateInfo}>
-                    <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
-                    <Text style={styles.playdateLabel}>
-                      {playdate.city}, {playdate.state}
-                    </Text>
-                  </View>
+              {activeJoinedPlaydates.length > 0 && (
+                <View style={styles.postTypeSection}>
+                  {activeJoinedPlaydates.map((playdate) => {
+                    const badge = getEventBadge(playdate.whenAt);
 
-                  <Text style={styles.postDescription}>{playdate.description}</Text>
+                    return (
+                      <TouchableOpacity
+                        key={playdate.id}
+                        activeOpacity={0.8}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/playdatePost",
+                            params: { id: playdate.id },
+                          })
+                        }
+                      >
+                        <View style={styles.postCard}>
+                          <Text style={styles.playdateTitle}>{playdate.title}</Text>
 
-                  <View style={styles.playdateDetails}>
-                    {playdate.whenAt && (() => {
-                      const badge = getEventBadge(playdate.whenAt);
-                      return (
-                        <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-                          <Text
-                            style={[
-                              styles.whenAt,
-                              {
-                                height: 24,       // same as badge
-                                lineHeight: 24,   // match text vertical space to badge
-                                marginBottom: 0,  // remove offset
-                              },
-                            ]}
-                          >
-                            {playdate.whenAt}
-                          </Text>
-  
-                          <View
-                            style={[
-                              styles.badge,
-                              badge.status === "upcoming" && styles.badgeUpcoming,
-                              badge.status === "ongoing" && styles.badgeOngoing,
-                              badge.status === "completed" && styles.badgeCompleted,
-                              {
-                                height: 24,          // same as text
-                                justifyContent: "center",
-                                alignItems: "center",
-                                marginLeft: 6,       // optional spacing
-                              },
-                            ]}
-                          >
-                            <Text style={styles.badgeText}>{badge.label}</Text>
+                          <View style={styles.playdateInfo}>
+                            <Text style={styles.playdateLabel}>{playdate.dogBreed}</Text>
+                            <Text style={styles.playdateLabel}>
+                              {playdate.city}, {playdate.state}
+                            </Text>
+                          </View>
+
+                          <Text style={styles.postDescription}>{playdate.description}</Text>
+
+                          <View style={styles.playdateDetails}>
+                            {playdate.whenAt &&
+                              (() => (
+                                <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+                                  <Text
+                                    style={[
+                                      styles.whenAt,
+                                      {
+                                        height: 24,
+                                        lineHeight: 24,
+                                        marginBottom: 0,
+                                      },
+                                    ]}
+                                  >
+                                    {playdate.whenAt}
+                                  </Text>
+
+                                  <View
+                                    style={[
+                                      styles.badge,
+                                      badge.status === "upcoming" && styles.badgeUpcoming,
+                                      badge.status === "ongoing" && styles.badgeOngoing,
+                                      {
+                                        height: 24,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        marginLeft: 6,
+                                      },
+                                    ]}
+                                  >
+                                    <Text style={styles.badgeText}>{badge.label}</Text>
+                                  </View>
+                                </View>
+                              ))()}
+                          </View>
+
+                          {playdate.imageUrl && (
+                            <Image
+                              source={{ uri: playdate.imageUrl }}
+                              style={styles.postImage}
+                            />
+                          )}
+
+                          <View style={styles.postFooter}>
+                            <Text style={styles.postStats}>{playdate.likes} likes</Text>
+                            <Text style={styles.postStats}>{playdate.comments} comments</Text>
+                            <Text style={styles.postDate}>
+                              {playdate.createdAt.toLocaleDateString()}
+                            </Text>
                           </View>
                         </View>
-                      );
-                    })()}
-                    <Text style={styles.playdateDetailText}>{playdate.city}</Text>
-                  </View>
-
-                  {playdate.imageUrl && (
-                    <Image
-                      source={{ uri: playdate.imageUrl }}
-                      style={styles.postImage}
-                    />
-                  )}
-
-                  <View style={styles.postFooter}>
-                    <Text style={styles.postStats}>{playdate.likes} likes</Text>
-                    <Text style={styles.postStats}>{playdate.comments} comments</Text>
-                    <Text style={styles.postDate}>
-                      {playdate.createdAt.toLocaleDateString()}
-                    </Text>
-                  </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+              )}
 
-        {joinedPlaydates.length === 0 && (
-          <Text style={{ color: "#666", marginTop: 8 }}>
-            Go join the fun!
-          </Text>
-        )}
+              {activeJoinedPlaydates.length === 0 && (
+                <Text style={{ color: "#666", marginTop: 8 }}>Go join the fun!</Text>
+              )}
+            </>
+          );
+        })()}
       </View>
 
       {/* User's Posts Section */}

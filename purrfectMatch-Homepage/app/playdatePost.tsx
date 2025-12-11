@@ -616,40 +616,56 @@ export default function PlaydatePost() {
               <Text style={styles.time}>{timeAgo(post?.createdAt ?? new Date())}</Text>
             </View>
             {/* Join Section (Badge + Button) */}
-            <View style={{ alignItems: "center" }}>
-              {/* Participants Badge */}
-              <TouchableOpacity onPress={handleGetParticipants}>
-                <View style={styles.participantsBadge}>
-                  <Text style={styles.participantsBadgeText}>
-                    {post?.participants === 0
-                      ? "No one joined yet"
-                      : post?.participants === 1
-                        ? "1 person joined"
-                        : `${post?.participants} people joined`}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+            {post && (() => {
+              const badge = getEventBadge(post.whenAt);
+              const isAuthor = getCurrentUser()?.uid === post.authorId;
+              const isCompleted = badge.status === "completed";
+              const isBlocked = isAuthor || isCompleted || joining;
 
-              <TouchableOpacity
-                style={[
-                  styles.joinButton,
-                  { backgroundColor: joined ? "#21bb61ff" : "#3498db",
-                    opacity: getCurrentUser()?.uid === post?.authorId || joining ? 0.5 : 1
-                  }
-                ]}
-                onPress={() => {
-                  if (getCurrentUser()?.uid !== post?.authorId && !joining) {
-                    toggleJoinPlaydate();
-                  }
-                }}
-                activeOpacity={0.8}
-                disabled={joining || getCurrentUser()?.uid === post?.authorId}
-              >
-                <Text style={styles.joinButtonText}>
-                  {joining ? "Joining..." : joined ? "Joined" : "Join"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+              return (
+                <View style={{ alignItems: "center" }}>
+                  {/* Participants Badge */}
+                  <TouchableOpacity onPress={handleGetParticipants}>
+                    <View style={styles.participantsBadge}>
+                      <Text style={styles.participantsBadgeText}>
+                        {post.participants === 0
+                          ? "No one joined yet"
+                          : post.participants === 1
+                            ? "1 person joined"
+                            : `${post.participants} people joined`}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.joinButton,
+                      {
+                        backgroundColor: joined ? "#21bb61ff" : "#3498db",
+                        opacity: isBlocked ? 0.5 : 1,
+                      },
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (isBlocked) return;
+                      toggleJoinPlaydate();
+                    }}
+                  >
+                    <Text style={styles.joinButtonText}>
+                      {joining
+                        ? "Joining..."
+                        : isCompleted
+                          ? "Closed"
+                          : joined
+                            ? "Joined"
+                            : "Join"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
           </View>
 
           <Text style={styles.title}>{post?.title}</Text>
