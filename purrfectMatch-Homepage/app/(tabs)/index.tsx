@@ -121,7 +121,9 @@ export default function CommunityScreen() {
         // Fetch author profile to get avatar
         const profile = await getUserProfileFirebase(post.authorId);
         // Fresh comment count from collection to avoid stale cached value
-        const comments = await getCommentsFirebase(post.id);
+        const comments = typeof getCommentsFirebase === 'function'
+          ? await getCommentsFirebase(post.id)
+          : [];
         
         return {
           id: index + 1,

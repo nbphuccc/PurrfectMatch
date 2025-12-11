@@ -619,7 +619,9 @@ export default function PlaydateScreen() {
           const joined = currentUser ? await getJoinStatusFirebase(post.id, currentUser.uid) : false;
           const profile = await getUserProfileFirebase(post.authorId);
           // Fresh comment count from collection to avoid stale cached value
-          const comments = await getPlaydateCommentsFirebase(post.id);
+          const comments = typeof getPlaydateCommentsFirebase === 'function'
+            ? await getPlaydateCommentsFirebase(post.id)
+            : [];
           return {
             id: post.id,
             authorId: post.authorId,

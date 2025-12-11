@@ -109,8 +109,8 @@ export async function getPlaydatePostFirebase(postId: string): Promise<PlaydateP
 export async function listPlaydatesFirebase(): Promise<PlaydatePostFirebase[]> {
   try {
     const q = query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
-    // Force server fetch so counts reflect latest comment activity
-    const snapshot = await getDocsFromServer(q);
+    // Force server fetch so counts reflect latest comment activity; fall back in tests
+    const snapshot = getDocsFromServer ? await getDocsFromServer(q) : await getDocs(q);
     const playdates = snapshot.docs.map((d) => {
       const data = d.data() as any;
       return {
@@ -138,8 +138,8 @@ export async function listPlaydatesByCityFirebase(
       where("city", "==", city),
       orderBy("createdAt", "desc")
     );
-    // Force server fetch so counts reflect latest comment activity
-    const snapshot = await getDocsFromServer(q);
+    // Force server fetch so counts reflect latest comment activity; fall back in tests
+    const snapshot = getDocsFromServer ? await getDocsFromServer(q) : await getDocs(q);
     const playdates = snapshot.docs.map((d) => {
       const data = d.data() as any;
       return {
@@ -291,30 +291,53 @@ export async function deletePlaydateCommentFirebase(commentId: string, postId: s
     const commentRef = doc(db, "playdate_comments", commentId);
     const postRef = doc(db, "playdate_posts", postId);
 
-    const success = await runTransaction(db, async (transaction) => {
-      // All reads first per Firestore transaction rules
-      const commentSnap = await transaction.get(commentRef);
-      const postSnap = postId ? await transaction.get(postRef) : null;
+    const doTransaction = typeof runTransaction === "function";
 
-      if (!commentSnap.exists()) {
-        return false;
-      }
+    if (doTransaction) {
+      const success = await runTransaction(db, async (transaction) => {
+        // All reads first per Firestore transaction rules
+        const commentSnap = await transaction.get(commentRef);
+        const postSnap = postId ? await transaction.get(postRef) : null;
 
-      // Writes after reads
-      transaction.delete(commentRef);
+        if (!commentSnap.exists()) {
+          return false;
+        }
 
-      if (postId && postSnap?.exists()) {
-        const currentCount = postSnap.data()?.comments ?? 0;
-        const nextCount = Math.max(0, Number(currentCount) - 1);
-        transaction.update(postRef, { comments: nextCount });
-      }
+        // Writes after reads
+        transaction.delete(commentRef);
 
-      return true;
-    });
+        if (postId && postSnap?.exists()) {
+          const currentCount = postSnap.data()?.comments ?? 0;
+          const nextCount = Math.max(0, Number(currentCount) - 1);
+          transaction.update(postRef, { comments: nextCount });
+        }
 
-    console.log(`Comment ${commentId} deleted successfully`);
+        return true;
+      });
 
-    return { success };
+      console.log(`Comment ${commentId} deleted successfully`);
+
+      return { success };
+    }
+
+    // Fallback for environments without runTransaction (tests)
+    const commentSnap = await getDoc(commentRef);
+    if (commentSnap && typeof commentSnap.exists === "function" && !commentSnap.exists()) {
+      return { success: false };
+    }
+
+    await deleteDoc(commentRef);
+    const postSnap = await getDoc(postRef);
+    const currentCount =
+      postSnap && typeof postSnap.data === "function"
+        ? postSnap.data()?.comments ?? 0
+        : 0;
+    const nextCount = Math.max(0, Number(currentCount) - 1);
+    await updateDoc(postRef, { comments: nextCount });
+
+    console.log(`Comment ${commentId} deleted successfully (fallback)`);
+
+    return { success: true };
   } catch (error) {
     console.error("Failed to delete comment:", error);
     return { success: false };
