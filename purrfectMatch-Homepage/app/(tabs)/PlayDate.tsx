@@ -16,7 +16,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase, toggleJoinFirebase, getJoinStatusFirebase } from "../../api/playdates";
+import {createPlaydateFirebase, listPlaydatesFirebase, toggleLikeFirebase, getLikeStatusFirebase, toggleJoinFirebase, getJoinStatusFirebase, getPlaydateCommentsFirebase } from "../../api/playdates";
 import MapView, { Marker, Circle } from 'react-native-maps';
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -618,6 +618,10 @@ export default function PlaydateScreen() {
           const liked = currentUser ? await getLikeStatusFirebase(post.id, currentUser.uid) : false;
           const joined = currentUser ? await getJoinStatusFirebase(post.id, currentUser.uid) : false;
           const profile = await getUserProfileFirebase(post.authorId);
+          // Fresh comment count from collection to avoid stale cached value
+          const comments = typeof getPlaydateCommentsFirebase === 'function'
+            ? await getPlaydateCommentsFirebase(post.id)
+            : [];
           return {
             id: post.id,
             authorId: post.authorId,
@@ -631,7 +635,7 @@ export default function PlaydateScreen() {
             description: post.description,
             whenAt: post.whenAt,
             likes: post.likes ?? 0,
-            comments: post.comments ?? 0,
+            comments: Math.max(post.comments ?? 0, comments.length),
             participants: post.participants ?? 0,
             liked: liked,
             joined: joined,

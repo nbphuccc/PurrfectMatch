@@ -3,6 +3,7 @@ import {
   collection, 
   addDoc, 
   getDocs, 
+  getDocsFromServer,
   query, 
   where,
   orderBy, 
@@ -14,6 +15,7 @@ import {
   writeBatch,
   getDoc,
   arrayUnion,
+  runTransaction,
 } from 'firebase/firestore';
 
 // ==================== FIREBASE FUNCTIONS ====================
@@ -80,7 +82,7 @@ export async function getCommunityPostFirebase(postId: string): Promise<Communit
       edits: data.edits ?? [],
       imageUrl: data.imageUrl ?? null,
       likes: data.likes ?? 0,
-      comments: data.comments ?? 0,
+      comments: Math.max(0, data.comments ?? 0),
       createdAt: data.createdAt?.toDate
         ? data.createdAt.toDate()
         : new Date(data.createdAt),
@@ -110,12 +112,13 @@ export async function listCommunityPostsFirebase(params?: {
       q = query(communityRef, where('category', '==', params.category), orderBy('createdAt', 'desc'));
     }
 
-    const snapshot = await getDocs(q);
+    // Force server fetch so counts are fresh after add/delete; fall back to cached in tests
+    const snapshot = getDocsFromServer ? await getDocsFromServer(q) : await getDocs(q);
     let posts = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       likes: doc.data().likes || 0,
-      comments: doc.data().comments || 0,
+      comments: Math.max(0, doc.data().comments || 0),
       createdAt: doc.data().createdAt.toDate(),
     })) as (CommunityPostFirebase & { id: string })[];
 
@@ -265,20 +268,52 @@ export async function addCommentFirebase(comment: {
 
 export async function deleteCommunityCommentFirebase(commentId: string, postId: string): Promise<{ success: boolean }> {
   try {
-    // Delete the comment
     const commentRef = doc(db, "community_comments", commentId);
-    await deleteDoc(commentRef);
+    const postRef = doc(db, "community_posts", postId);
 
-    console.log(`Comment ${commentId} deleted successfully`);
+    const doTransaction = typeof runTransaction === "function";
 
-    // Decrement the comments count on the post
-    if (postId) {
-      const postRef = doc(db, "community_posts", postId);
-      await updateDoc(postRef, {
-        comments: increment(-1),
+    if (doTransaction) {
+      const success = await runTransaction(db, async (transaction) => {
+        // All reads first per Firestore transaction rules
+        const commentSnap = await transaction.get(commentRef);
+        const postSnap = postId ? await transaction.get(postRef) : null;
+
+        if (!commentSnap.exists()) {
+          return false;
+        }
+
+        // Writes after reads
+        transaction.delete(commentRef);
+
+        if (postId && postSnap?.exists()) {
+          const currentCount = postSnap.data()?.comments ?? 0;
+          const nextCount = Math.max(0, Number(currentCount) - 1);
+          transaction.update(postRef, { comments: nextCount });
+        }
+
+        return true;
       });
+
+      console.log(`Comment ${commentId} deleted successfully`);
+      return { success };
     }
 
+    // Fallback for environments without runTransaction (tests)
+    const commentSnap = await getDoc(commentRef);
+    if (commentSnap && typeof commentSnap.exists === "function" && !commentSnap.exists()) {
+      return { success: false };
+    }
+
+    await deleteDoc(commentRef);
+    const postSnap = await getDoc(postRef);
+    if (postSnap && typeof postSnap.exists === "function" && postSnap.exists()) {
+      const currentCount = postSnap.data()?.comments ?? 0;
+      const nextCount = Math.max(0, Number(currentCount) - 1);
+      await updateDoc(postRef, { comments: nextCount });
+    }
+
+    console.log(`Comment ${commentId} deleted successfully (fallback)`);
     return { success: true };
   } catch (error) {
     console.error("Failed to delete comment:", error);
